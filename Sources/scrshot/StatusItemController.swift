@@ -67,7 +67,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func showAbout() {
         let alert = NSAlert()
         alert.messageText = "scrshot"
-        alert.informativeText = "\(versionMenuTitle)\nAuthor: warrfie\nGitHub: https://github.com/warrfie"
+        alert.informativeText = "\(versionMenuTitle)\nProject: https://github.com/Warrfie/scrshot"
         if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
            let iconImage = NSImage(contentsOf: iconURL) {
             alert.icon = iconImage
@@ -78,7 +78,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         alert.addButton(withTitle: "OK")
 
         let response = alert.runModal()
-        if response == .alertFirstButtonReturn, let url = URL(string: "https://github.com/warrfie") {
+        if response == .alertFirstButtonReturn, let url = URL(string: "https://github.com/Warrfie/scrshot") {
             NSWorkspace.shared.open(url)
         }
     }

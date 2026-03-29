@@ -20,7 +20,7 @@ enum AppLogCategory: String {
 final class AppLogger {
     static let shared = AppLogger()
 
-    private let queue = DispatchQueue(label: "com.warrfie.scrshot.logger")
+    private let queue = DispatchQueue(label: "scrshot.logger")
     private let logFileURL: URL
 
     private init() {

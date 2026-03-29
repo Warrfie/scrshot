@@ -7,6 +7,9 @@ import UniformTypeIdentifiers
 final class ScreenCaptureService {
     private var hasRequestedPermission = false
     private(set) var lastCaptureURL: URL?
+    private var cacheContainerName: String {
+        Bundle.main.bundleIdentifier ?? "scrshot"
+    }
 
     struct CapturedScreen {
         let displayID: CGDirectDisplayID
@@ -48,7 +51,7 @@ final class ScreenCaptureService {
             return
         }
         let debugDirectory = cachesDirectory
-            .appendingPathComponent("com.warrfie.scrshot", isDirectory: true)
+            .appendingPathComponent(cacheContainerName, isDirectory: true)
             .appendingPathComponent("DebugCaptures", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: debugDirectory, withIntermediateDirectories: true)
@@ -376,7 +379,7 @@ final class ScreenCaptureService {
         }
 
         let captureDirectory = cachesDirectory
-            .appendingPathComponent("com.warrfie.scrshot", isDirectory: true)
+            .appendingPathComponent(cacheContainerName, isDirectory: true)
             .appendingPathComponent("Captures", isDirectory: true)
 
         do {
