@@ -449,6 +449,11 @@ final class ImageSaverTests: XCTestCase {
         let rootDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("scrshot-image-saver-custom-\(UUID().uuidString)", isDirectory: true)
         let fixedDate = ISO8601DateFormatter().date(from: "2026-03-26T15:04:05Z")!
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
 
         let outputURL = try saver.save(
             image: makeImage(width: 2, height: 2, pixels: Array(repeating: rgba(20, 30, 40), count: 4)),
@@ -460,7 +465,10 @@ final class ImageSaverTests: XCTestCase {
             date: fixedDate
         )
 
-        XCTAssertEqual(outputURL.lastPathComponent, "release-shot_20260326-220405.png")
+        XCTAssertEqual(
+            outputURL.lastPathComponent,
+            "release-shot_\(formatter.string(from: fixedDate)).png"
+        )
     }
 }
 
