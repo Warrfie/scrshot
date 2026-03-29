@@ -1,0 +1,45 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="760" rx="24" fill="#0E131B"/>
+  <rect x="120" y="70" width="960" height="620" rx="28" fill="#1C2431" stroke="#334156"/>
+  <rect x="120" y="70" width="960" height="52" rx="28" fill="#2B3443"/>
+  <circle cx="154" cy="96" r="7" fill="#FF5F57"/>
+  <circle cx="178" cy="96" r="7" fill="#FFBD2F"/>
+  <circle cx="202" cy="96" r="7" fill="#28C840"/>
+  <text x="464" y="102" fill="#F8FAFC" font-family="SF Pro Display, -apple-system, BlinkMacSystemFont, sans-serif" font-size="24" font-weight="700">Preferences</text>
+
+  <g font-family="SF Pro Text, -apple-system, BlinkMacSystemFont, sans-serif">
+    <text x="166" y="176" fill="#F8FAFC" font-size="20" font-weight="700">Capture Shortcut</text>
+    <rect x="450" y="146" width="240" height="38" rx="12" fill="#0F151E" stroke="#40516C"/>
+    <text x="506" y="171" fill="#D7E0EB" font-size="18">⌘ ⇧ 1</text>
+
+    <text x="166" y="242" fill="#F8FAFC" font-size="20" font-weight="700">Save Folder</text>
+    <rect x="450" y="212" width="360" height="38" rx="12" fill="#0F151E" stroke="#40516C"/>
+    <rect x="826" y="212" width="98" height="38" rx="12" fill="#2B3443"/>
+    <text x="853" y="237" fill="#F8FAFC" font-size="16" font-weight="600">Choose</text>
+
+    <text x="166" y="308" fill="#F8FAFC" font-size="20" font-weight="700">Export</text>
+    <rect x="450" y="278" width="220" height="38" rx="12" fill="#0F151E" stroke="#40516C"/>
+    <text x="488" y="303" fill="#D7E0EB" font-size="18">Copy and Save</text>
+
+    <text x="166" y="374" fill="#F8FAFC" font-size="20" font-weight="700">Recording Format</text>
+    <rect x="450" y="344" width="140" height="38" rx="12" fill="#2A2216" stroke="#7B5C1F"/>
+    <text x="498" y="369" fill="#FFF1DE" font-size="18" font-weight="700">MOV</text>
+    <rect x="604" y="344" width="140" height="38" rx="12" fill="#0F151E" stroke="#40516C"/>
+    <text x="653" y="369" fill="#D7E0EB" font-size="18">MP4</text>
+
+    <text x="166" y="440" fill="#F8FAFC" font-size="20" font-weight="700">Recording Audio</text>
+    <rect x="450" y="410" width="260" height="38" rx="12" fill="#0F151E" stroke="#40516C"/>
+    <text x="486" y="435" fill="#D7E0EB" font-size="18">System Audio</text>
+
+    <text x="166" y="506" fill="#F8FAFC" font-size="20" font-weight="700">File Prefix</text>
+    <rect x="450" y="476" width="260" height="38" rx="12" fill="#0F151E" stroke="#40516C"/>
+    <text x="486" y="501" fill="#D7E0EB" font-size="18">screenshot</text>
+
+    <text x="166" y="572" fill="#F8FAFC" font-size="20" font-weight="700">Timestamp Template</text>
+    <rect x="450" y="542" width="320" height="38" rx="12" fill="#0F151E" stroke="#40516C"/>
+    <text x="486" y="567" fill="#D7E0EB" font-size="18">yyyy-MM-dd_HH-mm-ss</text>
+
+    <rect x="450" y="618" width="220" height="42" rx="14" fill="#253143"/>
+    <text x="500" y="645" fill="#F8FAFC" font-size="17" font-weight="700">Reset to Defaults</text>
+  </g>
+</svg>

@@ -1,0 +1,36 @@
+<svg width="1200" height="280" viewBox="0 0 1200 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="280" rx="20" fill="#0F141D"/>
+  <text x="48" y="54" fill="#F8FAFC" font-family="SF Pro Display, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="700">How scrshot flows</text>
+
+  <g font-family="SF Pro Text, -apple-system, BlinkMacSystemFont, sans-serif">
+    <rect x="44" y="94" width="180" height="120" rx="18" fill="#1A2330" stroke="#304058"/>
+    <text x="74" y="138" fill="#F8FAFC" font-size="22" font-weight="700">1. Trigger</text>
+    <text x="74" y="170" fill="#D3DBE7" font-size="18">Hotkey or</text>
+    <text x="74" y="194" fill="#D3DBE7" font-size="18">menu bar action</text>
+
+    <rect x="274" y="94" width="180" height="120" rx="18" fill="#1A2330" stroke="#304058"/>
+    <text x="304" y="138" fill="#F8FAFC" font-size="22" font-weight="700">2. Capture</text>
+    <text x="304" y="170" fill="#D3DBE7" font-size="18">Current display</text>
+    <text x="304" y="194" fill="#D3DBE7" font-size="18">or start recording</text>
+
+    <rect x="504" y="94" width="180" height="120" rx="18" fill="#1A2330" stroke="#304058"/>
+    <text x="534" y="138" fill="#F8FAFC" font-size="22" font-weight="700">3. Edit</text>
+    <text x="534" y="170" fill="#D3DBE7" font-size="18">Crop, text, arrow,</text>
+    <text x="534" y="194" fill="#D3DBE7" font-size="18">highlight, redact</text>
+
+    <rect x="734" y="94" width="180" height="120" rx="18" fill="#1A2330" stroke="#304058"/>
+    <text x="764" y="138" fill="#F8FAFC" font-size="22" font-weight="700">4. Export</text>
+    <text x="764" y="170" fill="#D3DBE7" font-size="18">Copy, save,</text>
+    <text x="764" y="194" fill="#D3DBE7" font-size="18">or both</text>
+
+    <rect x="964" y="94" width="192" height="120" rx="18" fill="#2A2216" stroke="#5E4822"/>
+    <text x="994" y="138" fill="#FFF7ED" font-size="22" font-weight="700">5. Ship It</text>
+    <text x="994" y="170" fill="#FFE3C2" font-size="18">Paste it, share it,</text>
+    <text x="994" y="194" fill="#FFE3C2" font-size="18">pretend it took hours</text>
+  </g>
+
+  <path d="M224 154H258" stroke="#FF8B63" stroke-width="6" stroke-linecap="round"/>
+  <path d="M454 154H488" stroke="#FF8B63" stroke-width="6" stroke-linecap="round"/>
+  <path d="M684 154H718" stroke="#FF8B63" stroke-width="6" stroke-linecap="round"/>
+  <path d="M914 154H948" stroke="#FF8B63" stroke-width="6" stroke-linecap="round"/>
+</svg>
