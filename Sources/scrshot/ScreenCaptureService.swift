@@ -1,14 +1,107 @@
 import AppKit
+import AVFoundation
 import CoreGraphics
 import Foundation
 import ImageIO
 import ScreenCaptureKit
 import UniformTypeIdentifiers
+
+final class ScreenCapturePermissionController {
+    static let shared = ScreenCapturePermissionController()
+
+    private let preflightAccess: () -> Bool
+    private let requestAccess: () -> Bool
+    private let activateApp: () -> Void
+    private var hasRequestedThisLaunch = false
+
+    init(
+        preflightAccess: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
+        requestAccess: @escaping () -> Bool = { CGRequestScreenCaptureAccess() },
+        activateApp: @escaping () -> Void = { NSApp.activate(ignoringOtherApps: true) }
+    ) {
+        self.preflightAccess = preflightAccess
+        self.requestAccess = requestAccess
+        self.activateApp = activateApp
+    }
+
+    var hasAccess: Bool {
+        preflightAccess()
+    }
+
+    var hasRequestedSystemPrompt: Bool {
+        hasRequestedThisLaunch
+    }
+
+    @discardableResult
+    func requestAccessIfNeeded() -> Bool {
+        guard !hasAccess else { return true }
+        guard !hasRequestedSystemPrompt else { return false }
+        activateApp()
+        hasRequestedThisLaunch = true
+        return requestAccess()
+    }
+}
+
+final class MicrophonePermissionController {
+    static let shared = MicrophonePermissionController()
+
+    private let authorizationStatusProvider: () -> AVAuthorizationStatus
+    private let requestAccess: () async -> Bool
+    private let activateApp: () -> Void
+    private var hasRequestedThisLaunch = false
+
+    init(
+        authorizationStatusProvider: @escaping () -> AVAuthorizationStatus = {
+            AVCaptureDevice.authorizationStatus(for: .audio)
+        },
+        requestAccess: @escaping () async -> Bool = {
+            await withCheckedContinuation { continuation in
+                AVCaptureDevice.requestAccess(for: .audio) { granted in
+                    continuation.resume(returning: granted)
+                }
+            }
+        },
+        activateApp: @escaping () -> Void = { NSApp.activate(ignoringOtherApps: true) }
+    ) {
+        self.authorizationStatusProvider = authorizationStatusProvider
+        self.requestAccess = requestAccess
+        self.activateApp = activateApp
+    }
+
+    var authorizationStatus: AVAuthorizationStatus {
+        authorizationStatusProvider()
+    }
+
+    var hasAccess: Bool {
+        authorizationStatus == .authorized
+    }
+
+    var hasRequestedSystemPrompt: Bool {
+        hasRequestedThisLaunch
+    }
+
+    @discardableResult
+    func requestAccessIfNeeded() async -> Bool {
+        guard !hasAccess else { return true }
+        guard authorizationStatus == .notDetermined else { return false }
+        guard !hasRequestedSystemPrompt else { return false }
+        await MainActor.run {
+            activateApp()
+        }
+        hasRequestedThisLaunch = true
+        return await requestAccess()
+    }
+}
+
 final class ScreenCaptureService {
-    private var hasRequestedPermission = false
     private(set) var lastCaptureURL: URL?
+    private let permissionController: ScreenCapturePermissionController
     private var cacheContainerName: String {
         Bundle.main.bundleIdentifier ?? "scrshot"
+    }
+
+    init(permissionController: ScreenCapturePermissionController = .shared) {
+        self.permissionController = permissionController
     }
 
     struct CapturedScreen {
@@ -121,13 +214,13 @@ final class ScreenCaptureService {
     }
 
     func captureCurrentDisplay() throws -> CapturedScreen {
-        let hasPermission = CGPreflightScreenCaptureAccess()
+        let hasPermission = permissionController.hasAccess
         debugLog("captureCurrentDisplay start; preflight=\(hasPermission)")
         logVisibleWindowDiagnostics()
 
         guard hasPermission else {
-            log("preflight denied; requesting permission")
-            requestPermissionIfNeeded()
+            let requestResult = permissionController.requestAccessIfNeeded()
+            log("preflight denied; requestResult=\(requestResult) alreadyPrompted=\(permissionController.hasRequestedSystemPrompt)")
             throw CaptureError.screenRecordingPermissionDenied
         }
 
@@ -463,12 +556,6 @@ final class ScreenCaptureService {
         return (screen, index + 1)
     }
 
-    private func requestPermissionIfNeeded() {
-        guard !hasRequestedPermission else { return }
-        hasRequestedPermission = true
-        log("requesting Screen Recording permission from system")
-        _ = CGRequestScreenCaptureAccess()
-    }
 }
 extension NSScreen {
     var displayID: CGDirectDisplayID? {

@@ -43,14 +43,19 @@ final class ScreenRecordingService: NSObject {
     private var nativeSession: AnyObject?
     private(set) var isRecording = false
     var onRecordingStateChanged: ((Bool) -> Void)?
+    private let permissionController: ScreenCapturePermissionController
+
+    init(permissionController: ScreenCapturePermissionController = .shared) {
+        self.permissionController = permissionController
+    }
 
     func startRecording(options: RecordingOptions) async throws -> URL {
         guard !isRecording else {
             throw RecordingError.failedToStartCapture
         }
 
-        guard CGPreflightScreenCaptureAccess() else {
-            _ = CGRequestScreenCaptureAccess()
+        guard permissionController.hasAccess else {
+            _ = permissionController.requestAccessIfNeeded()
             throw RecordingError.screenRecordingPermissionDenied
         }
 

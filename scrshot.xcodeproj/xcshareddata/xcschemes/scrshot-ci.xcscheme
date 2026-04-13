@@ -65,8 +65,7 @@
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
       <BuildableProductRunnable
-         runnableDebuggingMode = "0"
->
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000300000000000000001"

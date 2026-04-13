@@ -151,22 +151,27 @@ final class ScreenshotEditorViewController: NSViewController {
         action: nil
     )
     private let colorWell = NSColorWell()
+    private let rectangleColorLabel = NSTextField(labelWithString: "Color")
+    private let rectangleColorWell = NSColorWell()
     private let arrowWidthLabel = NSTextField(labelWithString: "Stroke")
     private let arrowWidthSlider = NSSlider(value: 8, minValue: 2, maxValue: 24, target: nil, action: nil)
     private let rectangleModeLabel = NSTextField(labelWithString: "Rectangle")
     private let rectangleModeControl = NSSegmentedControl(labels: ScreenshotRectangleToolMode.allCases.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
     private let rectangleOpacityLabel = NSTextField(labelWithString: "Opacity")
     private let rectangleOpacitySlider = NSSlider(value: 0.24, minValue: 0.05, maxValue: 1, target: nil, action: nil)
+    private let detailScaleLabel = NSTextField(labelWithString: "Zoom")
+    private let detailScaleSlider = NSSlider(value: 2, minValue: 1.5, maxValue: 6, target: nil, action: nil)
     private let lineStyleLabel = NSTextField(labelWithString: "Line")
     private let lineStylePopupButton = NSPopUpButton()
     private let textSizeLabel = NSTextField(labelWithString: "Text")
     private let textSizeSlider = NSSlider(value: 28, minValue: 12, maxValue: 96, target: nil, action: nil)
     private let textBackgroundButton = NSButton(checkboxWithTitle: "Bg", target: nil, action: nil)
+    private let textBackgroundColorLabel = NSTextField(labelWithString: "Bg Color")
+    private let textBackgroundColorWell = NSColorWell()
     private let textAlignmentControl = NSSegmentedControl(labels: ["L", "C", "R"], trackingMode: .selectOne, target: nil, action: nil)
     private let fitButton = NSButton(image: ScreenshotEditorViewController.symbolImage(named: "arrow.up.left.and.down.right.magnifyingglass"), target: nil, action: nil)
-    private let clearCropButton = NSButton(image: ScreenshotEditorViewController.symbolImage(named: "crop.rotate"), target: nil, action: nil)
-    private let editTextButton = NSButton(image: ScreenshotEditorViewController.symbolImage(named: "character.cursor.ibeam"), target: nil, action: nil)
-    private let deleteButton = NSButton(image: ScreenshotEditorViewController.symbolImage(named: "trash"), target: nil, action: nil)
+    private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
+    private let doneButton = NSButton(title: "Done", target: nil, action: nil)
     private var hasAppliedInitialFit = false
     private let preferredDisplayID: CGDirectDisplayID?
     private var canvasMargins = CGSize(width: 2, height: 0)
@@ -277,6 +282,13 @@ final class ScreenshotEditorViewController: NSViewController {
         colorWell.color = .systemRed
         colorWell.toolTip = "Annotation Color"
 
+        rectangleColorLabel.stringValue = "Color"
+        rectangleColorLabel.textColor = .secondaryLabelColor
+        rectangleColorWell.target = self
+        rectangleColorWell.action = #selector(rectangleColorChanged(_:))
+        rectangleColorWell.color = colorWell.color
+        rectangleColorWell.toolTip = "Rectangle Color"
+
         arrowWidthLabel.stringValue = "Stroke"
         arrowWidthLabel.textColor = .secondaryLabelColor
         arrowWidthSlider.target = self
@@ -306,6 +318,15 @@ final class ScreenshotEditorViewController: NSViewController {
         rectangleOpacitySlider.translatesAutoresizingMaskIntoConstraints = false
         rectangleOpacitySlider.widthAnchor.constraint(equalToConstant: 110).isActive = true
 
+        detailScaleLabel.stringValue = "Zoom"
+        detailScaleLabel.textColor = .secondaryLabelColor
+        detailScaleSlider.target = self
+        detailScaleSlider.action = #selector(detailScaleChanged(_:))
+        detailScaleSlider.isContinuous = true
+        detailScaleSlider.controlSize = .small
+        detailScaleSlider.translatesAutoresizingMaskIntoConstraints = false
+        detailScaleSlider.widthAnchor.constraint(equalToConstant: 110).isActive = true
+
         lineStyleLabel.stringValue = "Line"
         lineStyleLabel.textColor = .secondaryLabelColor
         for style in ScreenshotLineStyle.allCases {
@@ -329,6 +350,15 @@ final class ScreenshotEditorViewController: NSViewController {
         textBackgroundButton.action = #selector(textBackgroundChanged(_:))
         textBackgroundButton.title = "Background"
         textBackgroundButton.controlSize = .small
+        textBackgroundButton.setButtonType(.pushOnPushOff)
+        configureToolbarChipButton(textBackgroundButton)
+        updateToolbarChipButton(textBackgroundButton, isActive: textBackgroundButton.state == .on)
+
+        textBackgroundColorLabel.stringValue = "Bg Color"
+        textBackgroundColorLabel.textColor = .secondaryLabelColor
+        textBackgroundColorWell.target = self
+        textBackgroundColorWell.action = #selector(textBackgroundColorChanged(_:))
+        textBackgroundColorWell.color = NSColor.black.withAlphaComponent(0.55)
 
         textAlignmentControl.target = self
         textAlignmentControl.action = #selector(textAlignmentChanged(_:))
@@ -343,25 +373,15 @@ final class ScreenshotEditorViewController: NSViewController {
         fitButton.action = #selector(fitTapped)
         configureToolbarButton(fitButton, toolTip: "Fit to Selection")
 
-        clearCropButton.target = self
-        clearCropButton.action = #selector(clearCropTapped)
-        clearCropButton.isEnabled = false
-        configureToolbarButton(clearCropButton, toolTip: "Reset Crop")
-
-        editTextButton.target = self
-        editTextButton.action = #selector(editTextTapped)
-        editTextButton.isEnabled = false
-        configureToolbarButton(editTextButton, toolTip: "Edit Text")
-
-        deleteButton.target = self
-        deleteButton.action = #selector(deleteTapped)
-        deleteButton.isEnabled = false
-        configureToolbarButton(deleteButton, toolTip: "Delete Annotation")
-
-        let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancelTapped))
+        cancelButton.target = self
+        cancelButton.action = #selector(cancelTapped)
         cancelButton.controlSize = .small
-        let doneButton = NSButton(title: "Done", target: self, action: #selector(doneTapped))
-        doneButton.bezelStyle = .rounded
+        configureToolbarChipButton(cancelButton)
+
+        doneButton.target = self
+        doneButton.action = #selector(doneTapped)
+        doneButton.controlSize = .small
+        configureToolbarChipButton(doneButton, emphasized: true)
         doneButton.keyEquivalent = "\r"
 
         let spacer = NSView()
@@ -370,7 +390,7 @@ final class ScreenshotEditorViewController: NSViewController {
 
         let toolGroup = makeToolbarGroup([toolSelector])
         let commonGroup = makeToolbarGroup([cancelButton, doneButton])
-        let detailGroup = makeToolbarGroup([fitButton, colorWell, arrowWidthLabel, arrowWidthSlider, lineStyleLabel, lineStylePopupButton, rectangleModeLabel, rectangleModeControl, rectangleOpacityLabel, rectangleOpacitySlider, textSizeLabel, textSizeSlider, textBackgroundButton, textAlignmentControl, clearCropButton, editTextButton, deleteButton])
+        let detailGroup = makeToolbarGroup([fitButton, colorWell, arrowWidthLabel, arrowWidthSlider, lineStyleLabel, lineStylePopupButton, rectangleModeLabel, rectangleModeControl, rectangleColorLabel, rectangleColorWell, rectangleOpacityLabel, rectangleOpacitySlider, detailScaleLabel, detailScaleSlider, textSizeLabel, textSizeSlider, textBackgroundButton, textBackgroundColorLabel, textBackgroundColorWell, textAlignmentControl])
         contextPanel = detailGroup
         detailGroup.isHidden = true
 
@@ -396,8 +416,10 @@ final class ScreenshotEditorViewController: NSViewController {
         canvasView.activeRectangleMode = .blur
         canvasView.activeLineStyle = .solid
         canvasView.activeHighlightOpacity = CGFloat(rectangleOpacitySlider.doubleValue)
+        canvasView.activeDetailScale = CGFloat(detailScaleSlider.doubleValue)
         canvasView.activeTextFontSize = CGFloat(textSizeSlider.doubleValue)
         canvasView.activeTextShowsBackground = (textBackgroundButton.state == .on)
+        canvasView.activeTextBackgroundColor = textBackgroundColorWell.color
         canvasView.activeTextAlignment = .left
         canvasView.onImageChanged = { [weak self] in
             self?.canvasView.needsDisplay = true
@@ -414,10 +436,12 @@ final class ScreenshotEditorViewController: NSViewController {
         canvasView.onSelectionChanged = { [weak self] annotation in
             self?.updateInspector(for: annotation)
         }
-        canvasView.onCropChanged = { [weak self] cropRect in
-            self?.clearCropButton.isEnabled = cropRect != nil
-        }
         updateInspector(for: nil)
+    }
+
+    private func syncColorWells(with color: NSColor) {
+        colorWell.color = color
+        rectangleColorWell.color = color
     }
 
     @objc
@@ -445,6 +469,14 @@ final class ScreenshotEditorViewController: NSViewController {
     @objc
     private func colorChanged(_ sender: NSColorWell) {
         canvasView.applyColor(sender.color)
+        syncColorWells(with: sender.color)
+        updateInspector(for: canvasView.selectedAnnotation)
+    }
+
+    @objc
+    private func rectangleColorChanged(_ sender: NSColorWell) {
+        canvasView.applyColor(sender.color)
+        syncColorWells(with: sender.color)
         updateInspector(for: canvasView.selectedAnnotation)
     }
 
@@ -479,6 +511,12 @@ final class ScreenshotEditorViewController: NSViewController {
     }
 
     @objc
+    private func detailScaleChanged(_ sender: NSSlider) {
+        canvasView.applyDetailScale(CGFloat(sender.doubleValue))
+        updateInspector(for: canvasView.selectedAnnotation)
+    }
+
+    @objc
     private func lineStyleChanged(_ sender: NSPopUpButton) {
         guard let style = sender.selectedItem?.representedObject as? ScreenshotLineStyle else { return }
         canvasView.applyLineStyle(style)
@@ -494,6 +532,13 @@ final class ScreenshotEditorViewController: NSViewController {
     @objc
     private func textBackgroundChanged(_ sender: NSButton) {
         canvasView.applyTextBackground(sender.state == .on)
+        updateToolbarChipButton(textBackgroundButton, isActive: sender.state == .on)
+        updateInspector(for: canvasView.selectedAnnotation)
+    }
+
+    @objc
+    private func textBackgroundColorChanged(_ sender: NSColorWell) {
+        canvasView.applyTextBackgroundColor(sender.color)
         updateInspector(for: canvasView.selectedAnnotation)
     }
 
@@ -509,23 +554,6 @@ final class ScreenshotEditorViewController: NSViewController {
             alignment = .left
         }
         canvasView.applyTextAlignment(alignment)
-        updateInspector(for: canvasView.selectedAnnotation)
-    }
-
-    @objc
-    private func clearCropTapped() {
-        canvasView.clearCrop()
-        fitContentToWindow()
-    }
-
-    @objc
-    private func editTextTapped() {
-        canvasView.editSelectedText()
-    }
-
-    @objc
-    private func deleteTapped() {
-        canvasView.deleteSelection()
         updateInspector(for: canvasView.selectedAnnotation)
     }
 
@@ -560,6 +588,8 @@ final class ScreenshotEditorViewController: NSViewController {
             return "Drag to place a line with horizontal or vertical snap."
         case .rectangle:
             return "Drag to create a tinted, blurred, or black rectangle."
+        case .detail:
+            return "Drag from a source point to place a magnified detail callout."
         case .text:
             return "Click to place text and type inline."
         }
@@ -805,11 +835,47 @@ final class ScreenshotEditorViewController: NSViewController {
     }
 
     private func configureToolbarButton(_ button: NSButton, toolTip: String) {
-        button.bezelStyle = .texturedRounded
+        configureToolbarChipButton(button)
         button.controlSize = .small
         button.imagePosition = .imageOnly
         button.toolTip = toolTip
         button.contentTintColor = .labelColor
+    }
+
+    private func configureToolbarChipButton(_ button: NSButton, emphasized: Bool = false) {
+        button.isBordered = false
+        button.bezelStyle = .regularSquare
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 8
+        button.layer?.borderWidth = 0
+        button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+        updateToolbarChipButton(button, isActive: emphasized, emphasized: emphasized)
+    }
+
+    private func updateToolbarChipButton(_ button: NSButton, isActive: Bool, emphasized: Bool = false) {
+        let fillColor: NSColor
+        let titleColor: NSColor
+
+        if emphasized {
+            fillColor = .controlAccentColor
+            titleColor = .white
+        } else if isActive {
+            fillColor = .controlAccentColor.withAlphaComponent(0.16)
+            titleColor = .controlAccentColor
+        } else {
+            fillColor = .quaternaryLabelColor.withAlphaComponent(0.12)
+            titleColor = .labelColor
+        }
+
+        button.layer?.backgroundColor = fillColor.cgColor
+        button.contentTintColor = titleColor
+        button.attributedTitle = NSAttributedString(
+            string: button.title,
+            attributes: [
+                .foregroundColor: titleColor,
+                .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+            ]
+        )
     }
 
     private func makeToolbarGroup(_ views: [NSView]) -> NSView {
@@ -825,8 +891,8 @@ final class ScreenshotEditorViewController: NSViewController {
         container.state = .active
         container.wantsLayer = true
         container.layer?.cornerRadius = 10
-        container.layer?.borderWidth = 1
-        container.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.35).cgColor
+        container.layer?.borderWidth = 0
+        container.layer?.borderColor = NSColor.clear.cgColor
         container.translatesAutoresizingMaskIntoConstraints = false
 
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -863,27 +929,21 @@ final class ScreenshotEditorViewController: NSViewController {
     }
 
     private func updateInspector(for annotation: ScreenshotEditorAnnotation?) {
-        deleteButton.isEnabled = annotation != nil
-        editTextButton.isEnabled = annotation?.kind == .text
-        clearCropButton.isEnabled = canvasView.cropRect != nil
         let selectedKind = annotation?.kind
         let isRectangleHighlight = selectedKind == .highlight
         let showsColorControl: Bool
         if let selectedKind {
-            showsColorControl = selectedKind == .arrow || selectedKind == .line || selectedKind == .highlight || selectedKind == .text
+            showsColorControl = selectedKind == .arrow || selectedKind == .line || selectedKind == .highlight || selectedKind == .text || selectedKind == .detail
         } else {
             showsColorControl =
                 canvasView.tool == .arrow ||
                 canvasView.tool == .line ||
+                canvasView.tool == .detail ||
                 canvasView.tool == .text ||
                 (canvasView.tool == .rectangle && canvasView.activeRectangleMode == .highlight)
         }
-        colorWell.isHidden = !showsColorControl
-        if let annotation, annotation.kind != .obscure {
-            colorWell.color = annotation.color
-        } else {
-            colorWell.color = canvasView.activeColor
-        }
+        let inspectorColor = (annotation?.kind != .obscure ? annotation?.color : nil) ?? canvasView.activeColor
+        syncColorWells(with: inspectorColor)
 
         let showsArrowControls =
             annotation?.kind == .arrow ||
@@ -921,6 +981,10 @@ final class ScreenshotEditorViewController: NSViewController {
         rectangleModeControl.selectedSegment = ScreenshotRectangleToolMode.allCases.firstIndex(of: rectangleMode) ?? 0
 
         let showsRectangleOpacityControls = isRectangleHighlight || (annotation == nil && canvasView.tool == .rectangle && canvasView.activeRectangleMode == .highlight)
+        let showsRectangleColorControls = isRectangleHighlight || (annotation == nil && canvasView.tool == .rectangle && canvasView.activeRectangleMode == .highlight)
+        colorWell.isHidden = !showsColorControl || showsRectangleColorControls
+        rectangleColorLabel.isHidden = !showsRectangleColorControls
+        rectangleColorWell.isHidden = !showsRectangleColorControls
         rectangleOpacityLabel.isHidden = !showsRectangleOpacityControls
         rectangleOpacitySlider.isHidden = !showsRectangleOpacityControls
         if annotation?.kind == .highlight {
@@ -929,18 +993,27 @@ final class ScreenshotEditorViewController: NSViewController {
             rectangleOpacitySlider.doubleValue = Double(canvasView.activeHighlightOpacity)
         }
 
+        let showsDetailControls = annotation?.kind == .detail || (annotation == nil && canvasView.tool == .detail)
+        detailScaleLabel.isHidden = !showsDetailControls
+        detailScaleSlider.isHidden = !showsDetailControls
+        if annotation?.kind == .detail {
+            detailScaleSlider.doubleValue = Double(annotation?.detailScale ?? canvasView.activeDetailScale)
+        } else {
+            detailScaleSlider.doubleValue = Double(canvasView.activeDetailScale)
+        }
+
         let showsTextControls = annotation?.kind == .text || (annotation == nil && canvasView.tool == .text)
         textSizeLabel.isHidden = !showsTextControls
         textSizeSlider.isHidden = !showsTextControls
         textBackgroundButton.isHidden = !showsTextControls
+        textBackgroundColorLabel.isHidden = !showsTextControls
+        textBackgroundColorWell.isHidden = !showsTextControls
         textAlignmentControl.isHidden = !showsTextControls
         fitButton.isHidden = canvasView.tool != .crop
-        clearCropButton.isHidden = !(canvasView.tool == .crop || canvasView.cropRect != nil)
-        editTextButton.isHidden = !showsTextControls
-        deleteButton.isHidden = annotation == nil
         if annotation?.kind == .text {
             textSizeSlider.doubleValue = Double(annotation?.fontSize ?? canvasView.activeTextFontSize)
             textBackgroundButton.state = (annotation?.showsTextBackground ?? canvasView.activeTextShowsBackground) ? .on : .off
+            textBackgroundColorWell.color = annotation?.textBackgroundColor ?? canvasView.activeTextBackgroundColor
             switch annotation?.textAlignment ?? .left {
             case .center:
                 textAlignmentControl.selectedSegment = 1
@@ -952,6 +1025,7 @@ final class ScreenshotEditorViewController: NSViewController {
         } else {
             textSizeSlider.doubleValue = Double(canvasView.activeTextFontSize)
             textBackgroundButton.state = canvasView.activeTextShowsBackground ? .on : .off
+            textBackgroundColorWell.color = canvasView.activeTextBackgroundColor
             switch canvasView.activeTextAlignment {
             case .center:
                 textAlignmentControl.selectedSegment = 1
@@ -961,6 +1035,8 @@ final class ScreenshotEditorViewController: NSViewController {
                 textAlignmentControl.selectedSegment = 0
             }
         }
+        updateToolbarChipButton(textBackgroundButton, isActive: textBackgroundButton.state == .on)
+        textBackgroundColorWell.isEnabled = textBackgroundButton.state == .on
 
         let visibleContextControls = [
             !colorWell.isHidden,
@@ -970,15 +1046,18 @@ final class ScreenshotEditorViewController: NSViewController {
             !lineStylePopupButton.isHidden,
             !rectangleModeLabel.isHidden,
             !rectangleModeControl.isHidden,
+            !rectangleColorLabel.isHidden,
+            !rectangleColorWell.isHidden,
             !rectangleOpacityLabel.isHidden,
             !rectangleOpacitySlider.isHidden,
+            !detailScaleLabel.isHidden,
+            !detailScaleSlider.isHidden,
             !textSizeLabel.isHidden,
             !textSizeSlider.isHidden,
             !textBackgroundButton.isHidden,
-            !textAlignmentControl.isHidden,
-            !clearCropButton.isHidden,
-            !editTextButton.isHidden,
-            !deleteButton.isHidden
+            !textBackgroundColorLabel.isHidden,
+            !textBackgroundColorWell.isHidden,
+            !textAlignmentControl.isHidden
         ].contains(true)
         contextPanel?.isHidden = !visibleContextControls
     }

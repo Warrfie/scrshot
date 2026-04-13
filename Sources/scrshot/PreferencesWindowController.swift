@@ -31,6 +31,7 @@ final class PreferencesWindowController: NSWindowController {
 
     func show() {
         showWindow(nil)
+        (contentViewController as? PreferencesViewController)?.refreshPermissionStatus()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -48,6 +49,8 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
     private let timestampTemplateField = NSTextField()
     private let launchAtLoginButton = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
     private let revealSavedFileButton = NSButton(checkboxWithTitle: "Reveal saved file in Finder after export", target: nil, action: nil)
+    private let screenRecordingStatusLabel = NSTextField(labelWithString: "")
+    private let microphoneStatusLabel = NSTextField(labelWithString: "")
 
     init(preferences: AppPreferences) {
         self.preferences = preferences
@@ -71,10 +74,15 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
         let recordingFormatLabel = makeSectionLabel("Recording Format")
         let fileNamePrefixLabel = makeSectionLabel("File Prefix")
         let timestampTemplateLabel = makeSectionLabel("Timestamp Template")
+        let permissionsLabel = makeSectionLabel("Permissions")
         let noteLabel = NSTextField(labelWithString: "Use Unicode date patterns like yyyy-MM-dd_HH-mm-ss. Export mode controls whether Done copies, saves, or does both.")
         noteLabel.textColor = .secondaryLabelColor
         noteLabel.lineBreakMode = .byWordWrapping
         noteLabel.maximumNumberOfLines = 0
+        let permissionsNoteLabel = NSTextField(labelWithString: "Refresh checks the current macOS permission state. Open the matching privacy pane if capture or microphone access is blocked.")
+        permissionsNoteLabel.textColor = .secondaryLabelColor
+        permissionsNoteLabel.lineBreakMode = .byWordWrapping
+        permissionsNoteLabel.maximumNumberOfLines = 0
 
         shortcutRecorderButton.onChange = { [weak self] descriptor in
             self?.preferences.captureHotkey = descriptor
@@ -125,6 +133,13 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
         revealSavedFileButton.target = self
         revealSavedFileButton.action = #selector(revealSavedFileChanged(_:))
 
+        let refreshPermissionsButton = NSButton(title: "Refresh", target: self, action: #selector(refreshPermissions))
+        refreshPermissionsButton.bezelStyle = .rounded
+        let openScreenRecordingButton = NSButton(title: "Screen Recording Settings", target: self, action: #selector(openScreenRecordingSettings))
+        openScreenRecordingButton.bezelStyle = .rounded
+        let openMicrophoneButton = NSButton(title: "Microphone Settings", target: self, action: #selector(openMicrophoneSettings))
+        openMicrophoneButton.bezelStyle = .rounded
+
         let resetButton = NSButton(title: "Reset to Defaults", target: self, action: #selector(resetToDefaults))
         resetButton.bezelStyle = .rounded
 
@@ -136,6 +151,17 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
         let recordingFormatRow = makeRow(label: recordingFormatLabel, mainView: recordingFormatPopupButton, trailingView: nil)
         let fileNamePrefixRow = makeRow(label: fileNamePrefixLabel, mainView: fileNamePrefixField, trailingView: nil)
         let timestampTemplateRow = makeRow(label: timestampTemplateLabel, mainView: timestampTemplateField, trailingView: nil)
+        let screenRecordingStatusRow = makeRow(
+            label: NSTextField(labelWithString: "Screen Recording"),
+            mainView: screenRecordingStatusLabel,
+            trailingViews: [openScreenRecordingButton]
+        )
+        let microphoneStatusRow = makeRow(
+            label: NSTextField(labelWithString: "Microphone"),
+            mainView: microphoneStatusLabel,
+            trailingViews: [openMicrophoneButton]
+        )
+        let permissionsActionsRow = makeRow(label: permissionsLabel, mainView: refreshPermissionsButton, trailingView: nil)
 
         let stack = NSStackView(views: [
             shortcutRow,
@@ -146,6 +172,10 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
             recordingFormatRow,
             fileNamePrefixRow,
             timestampTemplateRow,
+            permissionsActionsRow,
+            screenRecordingStatusRow,
+            microphoneStatusRow,
+            permissionsNoteLabel,
             revealSavedFileButton,
             noteLabel,
             resetButton,
@@ -172,6 +202,17 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
 
         syncFromPreferences()
         view = root
+    }
+
+    func refreshPermissionStatus() {
+        let snapshot = PermissionStatusSnapshot.current()
+        screenRecordingStatusLabel.stringValue = snapshot.screenCaptureSummary
+        microphoneStatusLabel.stringValue = snapshot.microphoneSummary
+        screenRecordingStatusLabel.textColor = snapshot.screenCaptureGranted ? .systemGreen : .systemRed
+        microphoneStatusLabel.textColor = snapshot.microphoneStatus == .authorized ? .systemGreen : .systemRed
+        if snapshot.microphoneStatus == .notDetermined {
+            microphoneStatusLabel.textColor = .secondaryLabelColor
+        }
     }
 
     @objc
@@ -239,6 +280,21 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
         syncFromPreferences()
     }
 
+    @objc
+    private func refreshPermissions() {
+        refreshPermissionStatus()
+    }
+
+    @objc
+    private func openScreenRecordingSettings() {
+        openPrivacyPane(anchor: "Privacy_ScreenCapture")
+    }
+
+    @objc
+    private func openMicrophoneSettings() {
+        openPrivacyPane(anchor: "Privacy_Microphone")
+    }
+
     func controlTextDidEndEditing(_ obj: Notification) {
         guard let field = obj.object as? NSTextField else { return }
         if field === fileNamePrefixField {
@@ -267,6 +323,7 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
         if let formatIndex = AppPreferences.RecordingFileFormat.allCases.firstIndex(of: preferences.recordingFileFormat) {
             recordingFormatPopupButton.selectItem(at: formatIndex)
         }
+        refreshPermissionStatus()
     }
 
     private func makeSectionLabel(_ title: String) -> NSTextField {
@@ -288,6 +345,13 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
         stack.alignment = .centerY
         stack.spacing = 12
         return stack
+    }
+
+    private func openPrivacyPane(anchor: String) {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 }
 

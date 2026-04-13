@@ -69,6 +69,156 @@ final class ScreenCaptureServiceTests: XCTestCase {
             }
         }
     }
+
+    func testPermissionControllerRequestsSystemPromptOnlyOncePerLaunchInstance() {
+        var requestCallCount = 0
+        let controller = ScreenCapturePermissionController(
+            preflightAccess: { false },
+            requestAccess: {
+                requestCallCount += 1
+                return false
+            }
+        )
+
+        XCTAssertFalse(controller.hasAccess)
+        XCTAssertFalse(controller.hasRequestedSystemPrompt)
+        XCTAssertFalse(controller.requestAccessIfNeeded())
+        XCTAssertEqual(requestCallCount, 1)
+        XCTAssertTrue(controller.hasRequestedSystemPrompt)
+    }
+
+    func testCaptureCurrentDisplayDoesNotRePromptAfterInitialPermissionRequest() {
+        var requestCallCount = 0
+        let permissionController = ScreenCapturePermissionController(
+            preflightAccess: { false },
+            requestAccess: {
+                requestCallCount += 1
+                return false
+            }
+        )
+        let service = ScreenCaptureService(permissionController: permissionController)
+
+        XCTAssertThrowsError(try service.captureCurrentDisplay()) { error in
+            guard case ScreenCaptureService.CaptureError.screenRecordingPermissionDenied = error else {
+                return XCTFail("Expected screenRecordingPermissionDenied, got \(error)")
+            }
+        }
+        XCTAssertEqual(requestCallCount, 1)
+
+        XCTAssertThrowsError(try service.captureCurrentDisplay()) { error in
+            guard case ScreenCaptureService.CaptureError.screenRecordingPermissionDenied = error else {
+                return XCTFail("Expected screenRecordingPermissionDenied, got \(error)")
+            }
+        }
+        XCTAssertEqual(requestCallCount, 1)
+    }
+
+    @MainActor
+    func testMicrophonePermissionControllerRequestsSystemPromptOnlyOncePerLaunchInstance() async {
+        var requestCallCount = 0
+        let controller = MicrophonePermissionController(
+            authorizationStatusProvider: { .notDetermined },
+            requestAccess: {
+                requestCallCount += 1
+                return false
+            }
+        )
+
+        XCTAssertFalse(controller.hasAccess)
+        XCTAssertFalse(controller.hasRequestedSystemPrompt)
+        let initialRequestResult = await controller.requestAccessIfNeeded()
+        XCTAssertFalse(initialRequestResult)
+        XCTAssertEqual(requestCallCount, 1)
+        XCTAssertTrue(controller.hasRequestedSystemPrompt)
+    }
+
+    @MainActor
+    func testPermissionPreflightOnLaunchDoesNotOpenSystemSettingsWhenDenied() async {
+        let screenCapturePermissionController = ScreenCapturePermissionController(
+            preflightAccess: { false },
+            requestAccess: { false },
+            activateApp: {}
+        )
+        let microphonePermissionController = MicrophonePermissionController(
+            authorizationStatusProvider: { .notDetermined },
+            requestAccess: { false },
+            activateApp: {}
+        )
+        var openedAnchors: [String] = []
+        let coordinator = AppPermissionCoordinator(
+            screenCapturePermissionController: screenCapturePermissionController,
+            microphonePermissionController: microphonePermissionController,
+            openPrivacyPane: { openedAnchors.append($0) }
+        )
+
+        coordinator.preflightOnLaunch(recordingAudioSource: .systemAudioAndMicrophone)
+        await Task.yield()
+
+        XCTAssertTrue(openedAnchors.isEmpty)
+    }
+
+    @MainActor
+    func testEnsurePermissionsForCaptureOpensSystemSettingsWhenDenied() {
+        let screenCapturePermissionController = ScreenCapturePermissionController(
+            preflightAccess: { false },
+            requestAccess: { false },
+            activateApp: {}
+        )
+        var openedAnchors: [String] = []
+        let coordinator = AppPermissionCoordinator(
+            screenCapturePermissionController: screenCapturePermissionController,
+            microphonePermissionController: MicrophonePermissionController(
+                authorizationStatusProvider: { .authorized },
+                requestAccess: { true },
+                activateApp: {}
+            ),
+            openPrivacyPane: { openedAnchors.append($0) }
+        )
+
+        let granted = coordinator.ensurePermissionsForCapture()
+
+        XCTAssertFalse(granted)
+        XCTAssertEqual(openedAnchors, ["Privacy_ScreenCapture"])
+    }
+
+    @MainActor
+    func testEnsurePermissionsForCaptureReturnsTrueWhenPermissionAlreadyGranted() {
+        let coordinator = AppPermissionCoordinator(
+            screenCapturePermissionController: ScreenCapturePermissionController(
+                preflightAccess: { true },
+                requestAccess: { true },
+                activateApp: {}
+            ),
+            microphonePermissionController: MicrophonePermissionController(
+                authorizationStatusProvider: { .authorized },
+                requestAccess: { true },
+                activateApp: {}
+            ),
+            openPrivacyPane: { _ in XCTFail("Should not open System Settings when permission is already granted") }
+        )
+
+        XCTAssertTrue(coordinator.ensurePermissionsForCapture())
+    }
+
+    @MainActor
+    func testEnsurePermissionsForRecordingReturnsFalseWhenScreenCapturePermissionDenied() async {
+        let coordinator = AppPermissionCoordinator(
+            screenCapturePermissionController: ScreenCapturePermissionController(
+                preflightAccess: { false },
+                requestAccess: { false },
+                activateApp: {}
+            ),
+            microphonePermissionController: MicrophonePermissionController(
+                authorizationStatusProvider: { .authorized },
+                requestAccess: { true },
+                activateApp: {}
+            ),
+            openPrivacyPane: { _ in }
+        )
+
+        let granted = await coordinator.ensurePermissionsForRecording(audioSource: .systemAudio)
+        XCTAssertFalse(granted)
+    }
 }
 
 @MainActor
@@ -124,6 +274,48 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         XCTAssertNotEqual(pixel(atX: 4, y: 4, in: rendered!), rgba(255, 255, 255))
     }
 
+    func testSelectionDeleteButtonRectSitsNearTopRightOfSelectionBounds() {
+        let annotation = ScreenshotEditorAnnotation.highlight(
+            CGRect(x: 20, y: 30, width: 80, height: 40),
+            color: .systemRed
+        )
+
+        let buttonRect = annotation.deleteButtonRect(scale: 1)
+
+        XCTAssertGreaterThan(buttonRect.midX, annotation.selectionBounds.midX)
+        XCTAssertLessThan(buttonRect.midY, annotation.selectionBounds.midY)
+        XCTAssertGreaterThan(buttonRect.width, 0)
+        XCTAssertGreaterThan(buttonRect.height, 0)
+    }
+
+    func testCropDeleteButtonRectSitsNearTopRightOfCropBounds() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 200, height: 120, pixels: Array(repeating: rgba(255, 255, 255), count: 24_000)))
+        let canvasView = ScreenshotEditorCanvasView(document: document)
+        let cropRect = CGRect(x: 20, y: 30, width: 80, height: 40)
+
+        let buttonRect = canvasView.cropDeleteButtonRect(for: cropRect, scale: 1)
+
+        XCTAssertGreaterThan(buttonRect.midX, cropRect.midX)
+        XCTAssertLessThan(buttonRect.midY, cropRect.midY)
+        XCTAssertGreaterThan(buttonRect.width, 0)
+        XCTAssertGreaterThan(buttonRect.height, 0)
+    }
+
+    func testUpdateSelectedColorChangesRenderedHighlightColor() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 20, height: 20, pixels: Array(repeating: rgba(255, 255, 255), count: 400)))
+        let originalColor = NSColor(calibratedRed: 1, green: 0, blue: 0, alpha: 1)
+        let updatedColor = NSColor(calibratedRed: 0, green: 0, blue: 1, alpha: 1)
+        let annotation = ScreenshotEditorAnnotation.highlight(CGRect(x: 4, y: 4, width: 10, height: 10), color: originalColor)
+        document.addAnnotation(annotation)
+
+        let initialPixel = pixel(atX: 6, y: 6, in: document.renderedImage()!)
+        document.updateSelectedColor(updatedColor)
+        let updatedPixel = pixel(atX: 6, y: 6, in: document.renderedImage()!)
+
+        XCTAssertNotEqual(initialPixel, updatedPixel)
+        XCTAssertGreaterThan(updatedPixel.b, updatedPixel.r)
+    }
+
     func testRenderedImageIncludesRedactAnnotation() {
         let basePixels = Array(repeating: rgba(230, 230, 230), count: 40 * 40)
         let document = ScreenshotEditorDocument(image: makeImage(width: 40, height: 40, pixels: basePixels))
@@ -151,6 +343,94 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         let blurredRendered = blurredDocument.renderedImage()!
 
         XCTAssertGreaterThan(differingPixelCount(between: plainRendered, and: blurredRendered), 40)
+    }
+
+    func testRenderedImageIncludesDetailCalloutAnnotation() {
+        var basePixels: [RGBA] = []
+        for y in 0..<120 {
+            for x in 0..<160 {
+                basePixels.append(rgba(UInt8((x * 3) % 255), UInt8((y * 5) % 255), UInt8(((x + y) * 7) % 255)))
+            }
+        }
+
+        let baseImage = makeImage(width: 160, height: 120, pixels: basePixels)
+        let plainDocument = ScreenshotEditorDocument(image: baseImage)
+        let detailDocument = ScreenshotEditorDocument(image: baseImage)
+        detailDocument.addAnnotation(.detail(
+            sourcePoint: CGPoint(x: 36, y: 34),
+            bubbleCenter: CGPoint(x: 118, y: 82),
+            color: .systemRed,
+            scale: 2.4
+        ))
+
+        let plainRendered = plainDocument.renderedImage()!
+        let detailRendered = detailDocument.renderedImage()!
+
+        XCTAssertGreaterThan(differingPixelCount(between: plainRendered, and: detailRendered), 900)
+    }
+
+    func testDetailCalloutZoomChangesSourceMarkerAndMagnifiedContent() {
+        var basePixels: [RGBA] = []
+        for y in 0..<140 {
+            for x in 0..<180 {
+                basePixels.append(rgba(UInt8((x * 11) % 255), UInt8((y * 7) % 255), UInt8(((x * 3) + (y * 5)) % 255)))
+            }
+        }
+
+        let baseImage = makeImage(width: 180, height: 140, pixels: basePixels)
+        let lowZoomDocument = ScreenshotEditorDocument(image: baseImage)
+        lowZoomDocument.addAnnotation(.detail(
+            sourcePoint: CGPoint(x: 44, y: 42),
+            bubbleCenter: CGPoint(x: 132, y: 94),
+            color: .systemBlue,
+            scale: 1.5
+        ))
+
+        let highZoomDocument = ScreenshotEditorDocument(image: baseImage)
+        highZoomDocument.addAnnotation(.detail(
+            sourcePoint: CGPoint(x: 44, y: 42),
+            bubbleCenter: CGPoint(x: 132, y: 94),
+            color: .systemBlue,
+            scale: 4.5
+        ))
+
+        let lowZoomRendered = lowZoomDocument.renderedImage()!
+        let highZoomRendered = highZoomDocument.renderedImage()!
+
+        XCTAssertGreaterThan(differingPixelCount(between: lowZoomRendered, and: highZoomRendered), 700)
+    }
+
+    func testDetailCalloutCentersTheSameSourceRegionShownInSourceMarker() {
+        let width = 180
+        let height = 180
+        var basePixels = Array(repeating: rgba(12, 12, 12), count: width * height)
+
+        for y in 34..<50 {
+            for x in 36..<52 {
+                basePixels[y * width + x] = rgba(255, 40, 40)
+            }
+        }
+
+        for y in 118..<134 {
+            for x in 36..<52 {
+                basePixels[y * width + x] = rgba(40, 255, 40)
+            }
+        }
+
+        let baseImage = makeImage(width: width, height: height, pixels: basePixels)
+        let document = ScreenshotEditorDocument(image: baseImage)
+        document.addAnnotation(.detail(
+            sourcePoint: CGPoint(x: 44, y: 42),
+            bubbleCenter: CGPoint(x: 128, y: 92),
+            color: .systemRed,
+            scale: 6
+        ))
+
+        let rendered = document.renderedImage()!
+        let bubbleCenterPixel = pixel(atX: 128, y: 92, in: rendered)
+
+        XCTAssertGreaterThan(Int(bubbleCenterPixel.r), 200)
+        XCTAssertLessThan(Int(bubbleCenterPixel.g), 120)
     }
 
     func testCropAndAnnotationRenderTogether() {
@@ -311,6 +591,103 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
 
         XCTAssertGreaterThan(differingPixelCount(between: leftAlignedRendered, and: rightAlignedRendered), 100)
     }
+
+    func testRenderedImageReflectsTextBackgroundColorChanges() {
+        let basePixels = Array(repeating: rgba(255, 255, 255), count: 240 * 120)
+        let baseImage = makeImage(width: 240, height: 120, pixels: basePixels)
+
+        let darkBackgroundDocument = ScreenshotEditorDocument(image: baseImage)
+        darkBackgroundDocument.addAnnotation(.text(
+            "TEST",
+            at: CGPoint(x: 20, y: 20),
+            color: .white,
+            fontSize: 28,
+            alignment: .left,
+            showsBackground: true,
+            backgroundColor: NSColor.black.withAlphaComponent(0.55)
+        ))
+        darkBackgroundDocument.updateTextLayout(for: darkBackgroundDocument.selectedAnnotation!.id, size: CGSize(width: 180, height: 50))
+        let darkRendered = darkBackgroundDocument.renderedImage()!
+
+        let blueBackgroundDocument = ScreenshotEditorDocument(image: baseImage)
+        blueBackgroundDocument.addAnnotation(.text(
+            "TEST",
+            at: CGPoint(x: 20, y: 20),
+            color: .white,
+            fontSize: 28,
+            alignment: .left,
+            showsBackground: true,
+            backgroundColor: NSColor.systemBlue.withAlphaComponent(0.7)
+        ))
+        blueBackgroundDocument.updateTextLayout(for: blueBackgroundDocument.selectedAnnotation!.id, size: CGSize(width: 180, height: 50))
+        let blueRendered = blueBackgroundDocument.renderedImage()!
+
+        XCTAssertGreaterThan(differingPixelCount(between: darkRendered, and: blueRendered), 500)
+    }
+
+    func testTextToolClickCreatesInlineEditorThatAcceptsTyping() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 120, height: 80, pixels: Array(repeating: rgba(255, 255, 255), count: 120 * 80)))
+        let canvas = ScreenshotEditorCanvasView(document: document)
+        canvas.tool = .text
+        canvas.activeColor = .systemRed
+        canvas.activeTextFontSize = 20
+        canvas.activeTextAlignment = .left
+        canvas.activeTextShowsBackground = true
+
+        let hostView = NSView(frame: CGRect(x: 0, y: 0, width: 240, height: 180))
+        canvas.frame = CGRect(origin: .zero, size: CGSize(width: 120, height: 80))
+        hostView.addSubview(canvas)
+
+        let window = NSWindow(
+            contentRect: hostView.bounds,
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostView
+        window.makeKeyAndOrderFront(nil)
+
+        let clickLocation = CGPoint(x: 24, y: 28)
+        let mouseDown = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: window.convertPoint(toScreen: clickLocation),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        )!
+        let mouseUp = NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: window.convertPoint(toScreen: clickLocation),
+            modifierFlags: [],
+            timestamp: 0.01,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 1,
+            pressure: 0
+        )!
+
+        canvas.mouseDown(with: mouseDown)
+        canvas.mouseUp(with: mouseUp)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+
+        let textView = findSubview(in: canvas) { $0 as? NSTextView }
+        XCTAssertNotNil(textView)
+        XCTAssertTrue(textView?.isEditable == true)
+        XCTAssertTrue(window.firstResponder === textView)
+        XCTAssertEqual(document.selectedAnnotation?.kind, .text)
+
+        textView?.allowsUndo = false
+        sendKeyText("Hello", to: textView!)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(document.selectedAnnotation?.text, "Hello")
+    }
+
 }
 
 final class HotkeyManagerTests: XCTestCase {
@@ -320,6 +697,161 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(descriptor.id, 1)
         XCTAssertEqual(descriptor.keyCode, 19)
         XCTAssertEqual(descriptor.modifiers, UInt32(cmdKey | shiftKey))
+    }
+
+    func testDevelopmentEnvironmentDiagnosticsFlagsDerivedDataAndAdHocSigningAsUnstable() {
+        let diagnostics = DevelopmentEnvironmentDiagnostics(
+            bundlePath: "/Users/test/Library/Developer/Xcode/DerivedData/scrshot/Build/Products/Debug/scrshot.app",
+            bundleIdentifier: "io.github.Warrfie.scrshot",
+            teamIdentifier: "not set"
+        )
+
+        XCTAssertTrue(diagnostics.isRunningFromDerivedData)
+        XCTAssertTrue(diagnostics.isAdHocSigned)
+        XCTAssertTrue(diagnostics.likelyCausesTCCPermissionMismatch)
+    }
+
+    func testDevelopmentEnvironmentDiagnosticsTreatsStableSignedAppAsSafe() {
+        let diagnostics = DevelopmentEnvironmentDiagnostics(
+            bundlePath: "/Users/test/Applications/scrshot-dev.app",
+            bundleIdentifier: "io.github.Warrfie.scrshot",
+            teamIdentifier: "7G4FAJX848"
+        )
+
+        XCTAssertFalse(diagnostics.isRunningFromDerivedData)
+        XCTAssertFalse(diagnostics.isAdHocSigned)
+        XCTAssertFalse(diagnostics.likelyCausesTCCPermissionMismatch)
+    }
+
+    func testDevelopmentAppRelaunchCoordinatorRequestsRelaunchForUnstableXcodeRun() {
+        let diagnostics = DevelopmentEnvironmentDiagnostics(
+            bundlePath: "/Users/test/Library/Developer/Xcode/DerivedData/scrshot/Build/Products/Debug/scrshot.app",
+            bundleIdentifier: "io.github.Warrfie.scrshot",
+            teamIdentifier: "nil"
+        )
+        let coordinator = DevelopmentAppRelaunchCoordinator(environment: [:], fileManager: .default)
+
+        XCTAssertTrue(coordinator.shouldRelaunch(diagnostics: diagnostics))
+    }
+
+    func testDevelopmentAppRelaunchCoordinatorSkipsRelaunchForTestsAndStableApps() {
+        let stableDiagnostics = DevelopmentEnvironmentDiagnostics(
+            bundlePath: "/Users/test/Applications/scrshot-dev.app",
+            bundleIdentifier: "io.github.Warrfie.scrshot",
+            teamIdentifier: "7G4FAJX848"
+        )
+        let unstableDiagnostics = DevelopmentEnvironmentDiagnostics(
+            bundlePath: "/Users/test/Library/Developer/Xcode/DerivedData/scrshot/Build/Products/Debug/scrshot.app",
+            bundleIdentifier: "io.github.Warrfie.scrshot",
+            teamIdentifier: "nil"
+        )
+
+        let testCoordinator = DevelopmentAppRelaunchCoordinator(
+            environment: ["XCTestConfigurationFilePath": "/tmp/test.xctestconfiguration"],
+            fileManager: .default
+        )
+        let relaunchedCoordinator = DevelopmentAppRelaunchCoordinator(
+            environment: [DevelopmentAppRelaunchCoordinator.relaunchedEnvironmentKey: "1"],
+            fileManager: .default
+        )
+
+        XCTAssertFalse(testCoordinator.shouldRelaunch(diagnostics: unstableDiagnostics))
+        XCTAssertFalse(relaunchedCoordinator.shouldRelaunch(diagnostics: unstableDiagnostics))
+        XCTAssertFalse(testCoordinator.shouldRelaunch(diagnostics: stableDiagnostics))
+    }
+
+    func testDevelopmentAppRelaunchCoordinatorResolvesExecutableFromBundleInfo() throws {
+        let rootURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("scrshot-dev-app-\(UUID().uuidString)", isDirectory: true)
+        let appURL = rootURL.appendingPathComponent("scrshot-dev.app", isDirectory: true)
+        let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
+        let macOSURL = contentsURL.appendingPathComponent("MacOS", isDirectory: true)
+        try FileManager.default.createDirectory(at: macOSURL, withIntermediateDirectories: true)
+
+        let infoPlist: [String: Any] = [
+            "CFBundleExecutable": "scrshot",
+            "CFBundleIdentifier": "io.github.Warrfie.scrshot",
+            "CFBundlePackageType": "APPL"
+        ]
+        let plistData = try PropertyListSerialization.data(fromPropertyList: infoPlist, format: .xml, options: 0)
+        try plistData.write(to: contentsURL.appendingPathComponent("Info.plist"))
+
+        let coordinator = DevelopmentAppRelaunchCoordinator(environment: [:], fileManager: .default)
+        let executableURL = try coordinator.executableURL(forAppAt: appURL)
+
+        XCTAssertEqual(executableURL.path, macOSURL.appendingPathComponent("scrshot").path)
+    }
+
+    func testDevelopmentAppRelaunchCoordinatorBuildsLaunchServicesArgumentsForStableApp() {
+        let appURL = URL(fileURLWithPath: "/Users/example/Applications/scrshot-dev.app", isDirectory: true)
+        let arguments = DevelopmentAppRelaunchCoordinator.launchArguments(
+            forAppAt: appURL,
+            environment: [DevelopmentAppRelaunchCoordinator.relaunchedEnvironmentKey: "1"]
+        )
+
+        XCTAssertEqual(
+            arguments,
+            ["-na", appURL.path, "--env", "\(DevelopmentAppRelaunchCoordinator.relaunchedEnvironmentKey)=1"]
+        )
+    }
+
+    func testAppInstanceCoordinatorDetectsAnotherRunningInstance() {
+        let coordinator = AppInstanceCoordinator(
+            bundleIdentifier: "io.github.Warrfie.scrshot",
+            currentProcessIdentifier: 100,
+            runningApplicationsProvider: { _ in
+                [
+                    .init(processIdentifier: 100),
+                    .init(processIdentifier: 222)
+                ]
+            }
+        )
+
+        XCTAssertEqual(coordinator.existingInstanceProcessIdentifier(), 222)
+    }
+
+    func testAppInstanceCoordinatorIgnoresCurrentProcessWhenSingleInstance() {
+        let coordinator = AppInstanceCoordinator(
+            bundleIdentifier: "io.github.Warrfie.scrshot",
+            currentProcessIdentifier: 100,
+            runningApplicationsProvider: { _ in
+                [.init(processIdentifier: 100)]
+            }
+        )
+
+        XCTAssertNil(coordinator.existingInstanceProcessIdentifier())
+    }
+
+    func testPermissionPreflightPolicySkipsLaunchPreflightInTests() {
+        let policy = PermissionPreflightPolicy(
+            environment: ["XCTestConfigurationFilePath": "/tmp/test.xctestconfiguration"]
+        )
+
+        XCTAssertFalse(policy.shouldRunOnLaunch)
+    }
+
+    func testPermissionPreflightPolicyRespectsManualSkipFlag() {
+        let policy = PermissionPreflightPolicy(
+            environment: [PermissionPreflightPolicy.skipEnvironmentKey: "true"]
+        )
+
+        XCTAssertFalse(policy.shouldRunOnLaunch)
+    }
+
+    func testPermissionStatusSnapshotSummariesReflectCurrentAccessState() {
+        let deniedSnapshot = PermissionStatusSnapshot(
+            screenCaptureGranted: false,
+            microphoneStatus: .notDetermined
+        )
+        XCTAssertEqual(deniedSnapshot.screenCaptureSummary, "Not Allowed")
+        XCTAssertEqual(deniedSnapshot.microphoneSummary, "Not Requested")
+
+        let grantedSnapshot = PermissionStatusSnapshot(
+            screenCaptureGranted: true,
+            microphoneStatus: .authorized
+        )
+        XCTAssertEqual(grantedSnapshot.screenCaptureSummary, "Allowed")
+        XCTAssertEqual(grantedSnapshot.microphoneSummary, "Allowed")
     }
 }
 
@@ -493,11 +1025,49 @@ private func makeImage(width: Int, height: Int, pixels: [RGBA]) -> CGImage {
     )!
 }
 
+
 private func pixel(atX x: Int, y: Int, in image: CGImage) -> RGBA {
     let data = image.dataProvider!.data!
     let bytes = CFDataGetBytePtr(data)!
     let offset = y * image.bytesPerRow + x * 4
     return RGBA(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3])
+}
+
+private func findSubview<T>(in view: NSView, matcher: (NSView) -> T?) -> T? {
+    if let match = matcher(view) {
+        return match
+    }
+
+    for subview in view.subviews {
+        if let match = findSubview(in: subview, matcher: matcher) {
+            return match
+        }
+    }
+
+    return nil
+}
+
+@MainActor
+private func sendKeyText(_ text: String, to textView: NSTextView) {
+    for scalar in text.unicodeScalars {
+        let character = String(scalar)
+        guard let event = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: textView.window?.windowNumber ?? 0,
+            context: nil,
+            characters: character,
+            charactersIgnoringModifiers: character,
+            isARepeat: false,
+            keyCode: 0
+        ) else {
+            XCTFail("Failed to create key event for \(character)")
+            return
+        }
+        textView.keyDown(with: event)
+    }
 }
 
 private func differingPixelCount(between lhs: CGImage, and rhs: CGImage) -> Int {

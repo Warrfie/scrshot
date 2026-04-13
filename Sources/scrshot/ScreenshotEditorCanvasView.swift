@@ -71,6 +71,7 @@ enum ScreenshotEditorTool: String, CaseIterable {
     case arrow = "Arrow"
     case line = "Line"
     case rectangle = "Rectangle"
+    case detail = "Detail"
     case text = "Text"
 
     var symbolName: String {
@@ -85,6 +86,8 @@ enum ScreenshotEditorTool: String, CaseIterable {
             return "pencil.tip"
         case .rectangle:
             return "rectangle"
+        case .detail:
+            return "plus.magnifyingglass"
         case .text:
             return "textformat"
         }
@@ -110,6 +113,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
         case line
         case highlight
         case obscure
+        case detail
         case text
     }
 
@@ -125,6 +129,9 @@ struct ScreenshotEditorAnnotation: Identifiable {
     var lineStyle: ScreenshotLineStyle
     var fillOpacity: CGFloat
     var showsTextBackground: Bool
+    var textBackgroundColor: NSColor
+    var detailSourcePoint: CGPoint
+    var detailScale: CGFloat
 
     static func arrow(from start: CGPoint, to end: CGPoint, color: NSColor) -> ScreenshotEditorAnnotation {
         ScreenshotEditorAnnotation(
@@ -139,7 +146,10 @@ struct ScreenshotEditorAnnotation: Identifiable {
             obscureStyle: .redact,
             lineStyle: .solid,
             fillOpacity: 0,
-            showsTextBackground: false
+            showsTextBackground: false,
+            textBackgroundColor: .clear,
+            detailSourcePoint: .zero,
+            detailScale: 2
         )
     }
 
@@ -156,7 +166,10 @@ struct ScreenshotEditorAnnotation: Identifiable {
             obscureStyle: .redact,
             lineStyle: .solid,
             fillOpacity: min(max(fillOpacity, 0.05), 1),
-            showsTextBackground: false
+            showsTextBackground: false,
+            textBackgroundColor: .clear,
+            detailSourcePoint: .zero,
+            detailScale: 2
         )
     }
 
@@ -178,7 +191,10 @@ struct ScreenshotEditorAnnotation: Identifiable {
             obscureStyle: .redact,
             lineStyle: .solid,
             fillOpacity: 0,
-            showsTextBackground: false
+            showsTextBackground: false,
+            textBackgroundColor: .clear,
+            detailSourcePoint: .zero,
+            detailScale: 2
         )
     }
 
@@ -195,7 +211,32 @@ struct ScreenshotEditorAnnotation: Identifiable {
             obscureStyle: style,
             lineStyle: .solid,
             fillOpacity: 1,
-            showsTextBackground: false
+            showsTextBackground: false,
+            textBackgroundColor: .clear,
+            detailSourcePoint: .zero,
+            detailScale: 2
+        )
+    }
+
+    static func detail(sourcePoint: CGPoint, bubbleCenter: CGPoint, color: NSColor, scale: CGFloat) -> ScreenshotEditorAnnotation {
+        let size = CGSize(width: 140, height: 140)
+        let origin = CGPoint(x: bubbleCenter.x - size.width / 2, y: bubbleCenter.y - size.height / 2)
+        return ScreenshotEditorAnnotation(
+            id: UUID(),
+            kind: .detail,
+            rect: CGRect(origin: origin, size: size),
+            text: nil,
+            color: color,
+            strokeWidth: 3,
+            fontSize: 0,
+            textAlignment: .left,
+            obscureStyle: .redact,
+            lineStyle: .solid,
+            fillOpacity: 0,
+            showsTextBackground: false,
+            textBackgroundColor: .clear,
+            detailSourcePoint: sourcePoint,
+            detailScale: min(max(scale, 1.5), 6)
         )
     }
 
@@ -205,7 +246,8 @@ struct ScreenshotEditorAnnotation: Identifiable {
         color: NSColor,
         fontSize: CGFloat,
         alignment: NSTextAlignment,
-        showsBackground: Bool
+        showsBackground: Bool,
+        backgroundColor: NSColor = NSColor.black.withAlphaComponent(0.55)
     ) -> ScreenshotEditorAnnotation {
         ScreenshotEditorAnnotation(
             id: UUID(),
@@ -219,7 +261,10 @@ struct ScreenshotEditorAnnotation: Identifiable {
             obscureStyle: .redact,
             lineStyle: .solid,
             fillOpacity: 0,
-            showsTextBackground: showsBackground
+            showsTextBackground: showsBackground,
+            textBackgroundColor: backgroundColor,
+            detailSourcePoint: .zero,
+            detailScale: 2
         )
     }
 
@@ -235,6 +280,22 @@ struct ScreenshotEditorAnnotation: Identifiable {
         CGPoint(x: (startPoint.x + endPoint.x) / 2, y: (startPoint.y + endPoint.y) / 2)
     }
 
+    private var clampedDetailScale: CGFloat {
+        min(max(detailScale, 1.5), 6)
+    }
+
+    private var detailSourceRect: CGRect {
+        let bubbleRect = rect.standardized
+        let sampleWidth = max(bubbleRect.width / clampedDetailScale, 24)
+        let sampleHeight = max(bubbleRect.height / clampedDetailScale, 24)
+        return CGRect(
+            x: detailSourcePoint.x - sampleWidth / 2,
+            y: detailSourcePoint.y - sampleHeight / 2,
+            width: sampleWidth,
+            height: sampleHeight
+        )
+    }
+
     var selectionBounds: CGRect {
         switch kind {
         case .arrow, .line:
@@ -246,6 +307,10 @@ struct ScreenshotEditorAnnotation: Identifiable {
             ).insetBy(dx: -14, dy: -14)
         case .highlight, .obscure, .text:
             return rect.standardized
+        case .detail:
+            let bubbleRect = rect.standardized
+            let sourceRect = detailSourceRect
+            return bubbleRect.union(sourceRect).insetBy(dx: -8, dy: -8)
         }
     }
 
@@ -257,6 +322,8 @@ struct ScreenshotEditorAnnotation: Identifiable {
             drawLine()
         case .highlight, .obscure:
             drawRectangle(baseImage: baseImage)
+        case .detail:
+            drawDetail(baseImage: baseImage)
         case .text:
             drawText()
         }
@@ -286,6 +353,18 @@ struct ScreenshotEditorAnnotation: Identifiable {
         }
     }
 
+    func deleteButtonRect(scale: CGFloat) -> CGRect {
+        let bounds = selectionBounds
+        let size: CGFloat = max(16 / scale, 18)
+        let inset: CGFloat = max(6 / scale, 6)
+        return CGRect(
+            x: bounds.maxX - size / 2,
+            y: bounds.minY - size / 2 - inset,
+            width: size,
+            height: size
+        )
+    }
+
     func handleRects(scale: CGFloat) -> [ScreenshotAnnotationHandle: CGRect] {
         let handleSize: CGFloat = 12 / scale
         switch kind {
@@ -294,7 +373,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
                 .arrowStart: CGRect(x: startPoint.x - handleSize / 2, y: startPoint.y - handleSize / 2, width: handleSize, height: handleSize),
                 .arrowEnd: CGRect(x: endPoint.x - handleSize / 2, y: endPoint.y - handleSize / 2, width: handleSize, height: handleSize)
             ]
-        case .highlight, .obscure, .text:
+        case .highlight, .obscure, .text, .detail:
             let bounds = rect.standardized
             return [
                 .topLeft: CGRect(x: bounds.minX - handleSize / 2, y: bounds.minY - handleSize / 2, width: handleSize, height: handleSize),
@@ -313,7 +392,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
         switch kind {
         case .arrow, .line:
             return [:]
-        case .highlight, .obscure, .text:
+        case .highlight, .obscure, .text, .detail:
             return handleRects(scale: scale)
         }
     }
@@ -326,6 +405,11 @@ struct ScreenshotEditorAnnotation: Identifiable {
             return distance <= lineHitWidth || selectionBounds.contains(point)
         case .highlight, .obscure, .text:
             return rect.standardized.insetBy(dx: -6, dy: -6).contains(point)
+        case .detail:
+            let bubbleRect = rect.standardized
+            let lineDistance = point.distanceToSegment(start: detailSourcePoint, end: bubbleRect.centerPoint)
+            let sourceRect = detailSourceRect.insetBy(dx: -6, dy: -6)
+            return bubbleRect.insetBy(dx: -6, dy: -6).contains(point) || sourceRect.contains(point) || lineDistance <= 8
         }
     }
 
@@ -344,6 +428,16 @@ struct ScreenshotEditorAnnotation: Identifiable {
                 y: min(max(current.minY + delta.y, bounds.minY), maxY)
             )
             rect = CGRect(origin: origin, size: current.size)
+        case .detail:
+            let current = rect.standardized
+            let maxX = bounds.maxX - current.width
+            let maxY = bounds.maxY - current.height
+            let origin = CGPoint(
+                x: min(max(current.minX + delta.x, bounds.minX), maxX),
+                y: min(max(current.minY + delta.y, bounds.minY), maxY)
+            )
+            rect = CGRect(origin: origin, size: current.size)
+            detailSourcePoint = detailSourcePoint.offsetBy(dx: delta.x, dy: delta.y).clamped(to: bounds)
         }
     }
 
@@ -371,7 +465,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
             default:
                 break
             }
-        case .highlight, .obscure, .text:
+        case .highlight, .obscure, .text, .detail:
             let current = rect.standardized
             let clampedPoint = point.clamped(to: bounds)
             var minX = current.minX
@@ -396,8 +490,17 @@ struct ScreenshotEditorAnnotation: Identifiable {
                 break
             }
 
-            let width = max(24, abs(maxX - minX))
-            let height = max(kind == .text ? 32 : 24, abs(maxY - minY))
+            let minimumSide: CGFloat
+            switch kind {
+            case .text:
+                minimumSide = 32
+            case .detail:
+                minimumSide = 60
+            default:
+                minimumSide = 24
+            }
+            let width = max(minimumSide, abs(maxX - minX))
+            let height = max(minimumSide, abs(maxY - minY))
             rect = CGRect(x: min(minX, maxX), y: min(minY, maxY), width: width, height: height)
         }
     }
@@ -478,7 +581,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
             path.line(to: p4)
             path.close()
             return path
-        case .highlight, .obscure, .text:
+        case .highlight, .obscure, .text, .detail:
             return NSBezierPath(rect: selectionBounds)
         }
     }
@@ -511,9 +614,49 @@ struct ScreenshotEditorAnnotation: Identifiable {
                 }
                 NSImage(cgImage: blurredImage, size: boxRect.size).draw(in: boxRect)
             }
-        case .arrow, .line, .text:
+        case .arrow, .line, .text, .detail:
             break
         }
+    }
+
+    private func drawDetail(baseImage: CGImage?) {
+        guard let baseImage else { return }
+        let bubbleRect = rect.standardized.integral
+        guard bubbleRect.width > 20, bubbleRect.height > 20 else { return }
+
+        let sampleRect = detailSourceRect
+            .intersection(CGRect(origin: .zero, size: CGSize(width: baseImage.width, height: baseImage.height)))
+
+        let bubbleCenter = bubbleRect.centerPoint
+        let connector = NSBezierPath()
+        connector.move(to: detailSourcePoint)
+        connector.line(to: bubbleCenter)
+        color.withAlphaComponent(0.9).setStroke()
+        connector.lineWidth = max(strokeWidth, 2)
+        connector.stroke()
+
+        let sourceMarkerRect = detailSourceRect.integral
+        let sourceMarker = NSBezierPath(ovalIn: sourceMarkerRect)
+        NSColor.windowBackgroundColor.withAlphaComponent(0.2).setFill()
+        sourceMarker.fill()
+        color.setStroke()
+        sourceMarker.lineWidth = max(strokeWidth, 2)
+        sourceMarker.stroke()
+
+        guard let zoomedImage = Self.croppedImage(from: baseImage, in: sampleRect) else { return }
+
+        let clipPath = NSBezierPath(ovalIn: bubbleRect)
+        NSGraphicsContext.saveGraphicsState()
+        clipPath.addClip()
+        NSImage(cgImage: zoomedImage, size: sampleRect.size).draw(in: bubbleRect)
+        NSGraphicsContext.restoreGraphicsState()
+
+        let bubblePath = NSBezierPath(ovalIn: bubbleRect)
+        NSColor.windowBackgroundColor.withAlphaComponent(0.18).setFill()
+        bubblePath.fill()
+        color.setStroke()
+        bubblePath.lineWidth = max(strokeWidth, 2)
+        bubblePath.stroke()
     }
 
     private func drawText() {
@@ -532,7 +675,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
 
         if showsTextBackground {
             let background = NSBezierPath(roundedRect: boxRect, xRadius: 8, yRadius: 8)
-            NSColor.black.withAlphaComponent(0.55).setFill()
+            textBackgroundColor.setFill()
             background.fill()
         }
 
@@ -557,6 +700,18 @@ struct ScreenshotEditorAnnotation: Identifiable {
         return ciContext.createCGImage(outputImage, from: sourceRect)
     }
 
+    private static func croppedImage(from baseImage: CGImage, in targetRect: CGRect) -> CGImage? {
+        let pixelAlignedRect = CGRect(
+            x: round(targetRect.minX),
+            y: round(targetRect.minY),
+            width: max(round(targetRect.width), 1),
+            height: max(round(targetRect.height), 1)
+        )
+        let sourceRect = pixelAlignedRect.intersection(CGRect(x: 0, y: 0, width: baseImage.width, height: baseImage.height))
+        guard sourceRect.width > 0, sourceRect.height > 0 else { return nil }
+        return baseImage.cropping(to: sourceRect)
+    }
+
     private static let ciContext = CIContext(options: nil)
 }
 
@@ -573,7 +728,10 @@ extension ScreenshotEditorAnnotation: Equatable {
         lhs.lineStyle == rhs.lineStyle &&
         lhs.fillOpacity == rhs.fillOpacity &&
         lhs.showsTextBackground == rhs.showsTextBackground &&
-        lhs.color.matches(rhs.color)
+        lhs.detailSourcePoint == rhs.detailSourcePoint &&
+        lhs.detailScale == rhs.detailScale &&
+        lhs.color.matches(rhs.color) &&
+        lhs.textBackgroundColor.matches(rhs.textBackgroundColor)
     }
 }
 
@@ -682,6 +840,12 @@ final class ScreenshotEditorDocument {
         annotations[index].showsTextBackground = showsBackground
     }
 
+    func updateSelectedTextBackgroundColor(_ color: NSColor) {
+        guard let index = selectedIndex else { return }
+        guard annotations[index].kind == .text else { return }
+        annotations[index].textBackgroundColor = color
+    }
+
     func updateSelectedObscureStyle(_ style: ScreenshotObscureStyle) {
         guard let index = selectedIndex else { return }
         guard annotations[index].kind == .obscure else { return }
@@ -698,6 +862,12 @@ final class ScreenshotEditorDocument {
         guard let index = selectedIndex else { return }
         guard annotations[index].kind == .highlight else { return }
         annotations[index].fillOpacity = min(max(opacity, 0.05), 1)
+    }
+
+    func updateSelectedDetailScale(_ scale: CGFloat) {
+        guard let index = selectedIndex else { return }
+        guard annotations[index].kind == .detail else { return }
+        annotations[index].detailScale = min(max(scale, 1.5), 6)
     }
 
     func moveSelected(by delta: CGPoint) {
@@ -930,7 +1100,7 @@ private final class InlineTextEditorView: NSView {
 
     override var isFlipped: Bool { true }
 
-    init(frame frameRect: CGRect, color: NSColor, fontSize: CGFloat, alignment: NSTextAlignment, showsBackground: Bool) {
+    init(frame frameRect: CGRect, color: NSColor, fontSize: CGFloat, alignment: NSTextAlignment, showsBackground: Bool, backgroundColor: NSColor) {
         let textContainer = NSTextContainer(size: NSSize(width: max(frameRect.width - 24, 80), height: .greatestFiniteMagnitude))
         textContainer.widthTracksTextView = false
         let layoutManager = NSLayoutManager()
@@ -938,11 +1108,16 @@ private final class InlineTextEditorView: NSView {
         let storage = NSTextStorage()
         storage.addLayoutManager(layoutManager)
         let textView = NSTextView(frame: frameRect.insetBy(dx: 12, dy: 8), textContainer: textContainer)
+        textView.isEditable = true
+        textView.isSelectable = true
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width, .height]
         textView.drawsBackground = false
-        textView.allowsUndo = true
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.usesFindPanel = false
+        textView.allowsUndo = false
         textView.textContainerInset = .zero
         textView.textContainer?.lineFragmentPadding = 0
         self.textView = textView
@@ -950,7 +1125,7 @@ private final class InlineTextEditorView: NSView {
         wantsLayer = true
         layer?.cornerRadius = 8
         addSubview(textView)
-        updateStyle(color: color, fontSize: fontSize, alignment: alignment, showsBackground: showsBackground)
+        updateStyle(color: color, fontSize: fontSize, alignment: alignment, showsBackground: showsBackground, backgroundColor: backgroundColor)
     }
 
     @available(*, unavailable)
@@ -958,7 +1133,7 @@ private final class InlineTextEditorView: NSView {
         nil
     }
 
-    func updateStyle(color: NSColor, fontSize: CGFloat, alignment: NSTextAlignment, showsBackground: Bool) {
+    func updateStyle(color: NSColor, fontSize: CGFloat, alignment: NSTextAlignment, showsBackground: Bool, backgroundColor: NSColor) {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = alignment
         textView.typingAttributes = [
@@ -969,7 +1144,7 @@ private final class InlineTextEditorView: NSView {
         if textView.textStorage?.length ?? 0 > 0 {
             textView.textStorage?.setAttributes(textView.typingAttributes, range: NSRange(location: 0, length: textView.textStorage?.length ?? 0))
         }
-        layer?.backgroundColor = showsBackground ? NSColor.black.withAlphaComponent(0.55).cgColor : NSColor.clear.cgColor
+        layer?.backgroundColor = showsBackground ? backgroundColor.cgColor : NSColor.clear.cgColor
     }
 
     func updateFrame(origin: CGPoint, width: CGFloat, height: CGFloat) {
@@ -997,9 +1172,11 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
     var activeRectangleMode: ScreenshotRectangleToolMode = .blur
     var activeLineStyle: ScreenshotLineStyle = .solid
     var activeHighlightOpacity: CGFloat = 0.24
+    var activeDetailScale: CGFloat = 2
     var activeTextFontSize: CGFloat = 28
     var activeTextAlignment: NSTextAlignment = .left
     var activeTextShowsBackground = true
+    var activeTextBackgroundColor: NSColor = NSColor.black.withAlphaComponent(0.55)
     var onImageChanged: (() -> Void)?
     var onSelectionChanged: ((ScreenshotEditorAnnotation?) -> Void)?
     var onCropChanged: ((CGRect?) -> Void)?
@@ -1022,6 +1199,10 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
     private var trackingArea: NSTrackingArea?
     private var inlineTextEditorView: InlineTextEditorView?
     private var inlineTextAnnotationID: UUID?
+    private var pendingTextActivationAnnotationID: UUID?
+    private var inlineTextKeyEventMonitor: Any?
+    private var isHoveringSelectedDeleteButton = false
+    private var isHoveringCropDeleteButton = false
 
     override var acceptsFirstResponder: Bool { true }
     override var isFlipped: Bool { true }
@@ -1128,6 +1309,17 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         }
     }
 
+    func applyTextBackgroundColor(_ color: NSColor) {
+        activeTextBackgroundColor = color
+        if document.selectedAnnotation?.kind == .text {
+            document.performUndoableChange(actionName: "Change Text Background Color") {
+                document.updateSelectedTextBackgroundColor(color)
+            }
+            updateInlineTextEditorAppearance()
+            notifyDocumentDidChange()
+        }
+    }
+
     func applyRectangleMode(_ mode: ScreenshotRectangleToolMode) {
         activeRectangleMode = mode
         if document.selectedAnnotation?.kind == .obscure {
@@ -1154,6 +1346,16 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         if document.selectedAnnotation?.kind == .highlight {
             document.performUndoableChange(actionName: "Change Rectangle Opacity") {
                 document.updateSelectedFillOpacity(activeHighlightOpacity)
+            }
+            notifyDocumentDidChange()
+        }
+    }
+
+    func applyDetailScale(_ scale: CGFloat) {
+        activeDetailScale = min(max(scale, 1.5), 6)
+        if document.selectedAnnotation?.kind == .detail {
+            document.performUndoableChange(actionName: "Change Detail Scale") {
+                document.updateSelectedDetailScale(activeDetailScale)
             }
             notifyDocumentDidChange()
         }
@@ -1204,7 +1406,8 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             color: annotation.color,
             fontSize: annotation.fontSize,
             alignment: annotation.textAlignment,
-            showsBackground: annotation.showsTextBackground
+            showsBackground: annotation.showsTextBackground,
+            backgroundColor: annotation.textBackgroundColor
         )
         editor.textView.delegate = self
         editor.textView.string = annotation.text ?? ""
@@ -1214,13 +1417,15 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         document.selectAnnotation(id: annotationID)
         syncInlineTextEditorLayout()
         needsDisplay = true
-        window?.makeFirstResponder(editor.textView)
-        editor.textView.setSelectedRange(NSRange(location: editor.textView.string.count, length: 0))
+        installInlineTextKeyEventMonitor()
+        activateInlineTextEditor(editor.textView)
         onSelectionChanged?(document.selectedAnnotation)
     }
 
     private func finishInlineTextEditing(commit: Bool) {
         guard let inlineTextAnnotationID, let editor = inlineTextEditorView else { return }
+
+        removeInlineTextKeyEventMonitor()
 
         defer {
             inlineTextEditorView = nil
@@ -1260,7 +1465,8 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             color: annotation.color,
             fontSize: annotation.fontSize,
             alignment: annotation.textAlignment,
-            showsBackground: annotation.showsTextBackground
+            showsBackground: annotation.showsTextBackground,
+            backgroundColor: annotation.textBackgroundColor
         )
         let height = editor.measuredHeight()
         let size = CGSize(width: annotation.rect.width, height: height)
@@ -1272,6 +1478,50 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         needsDisplay = true
     }
 
+    private func installInlineTextKeyEventMonitor() {
+        guard inlineTextKeyEventMonitor == nil else { return }
+        inlineTextKeyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            return self.handleInlineTextKeyEventIfNeeded(event) ? nil : event
+        }
+    }
+
+    private func removeInlineTextKeyEventMonitor() {
+        guard let inlineTextKeyEventMonitor else { return }
+        NSEvent.removeMonitor(inlineTextKeyEventMonitor)
+        self.inlineTextKeyEventMonitor = nil
+    }
+
+    @discardableResult
+    private func handleInlineTextKeyEventIfNeeded(_ event: NSEvent) -> Bool {
+        guard let editor = inlineTextEditorView,
+              let window,
+              !event.modifierFlags.contains(.command),
+              !event.modifierFlags.contains(.control) else {
+            return false
+        }
+        if let eventWindow = event.window, eventWindow !== window {
+            return false
+        }
+
+        if event.keyCode == 53 {
+            finishInlineTextEditing(commit: true)
+            window.makeFirstResponder(self)
+            return true
+        }
+
+        if window.firstResponder !== editor.textView {
+            activateInlineTextEditor(editor.textView)
+        }
+        editor.textView.keyDown(with: event)
+        return true
+    }
+
+    @discardableResult
+    func dispatchInlineTextKeyEventForTesting(_ event: NSEvent) -> Bool {
+        handleInlineTextKeyEventIfNeeded(event)
+    }
+
     private func updateInlineTextEditorAppearance() {
         guard let inlineTextAnnotationID,
               let annotation = document.annotation(withID: inlineTextAnnotationID),
@@ -1280,9 +1530,48 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             color: annotation.color,
             fontSize: annotation.fontSize,
             alignment: annotation.textAlignment,
-            showsBackground: annotation.showsTextBackground
+            showsBackground: annotation.showsTextBackground,
+            backgroundColor: annotation.textBackgroundColor
         )
         needsDisplay = true
+    }
+
+    private func activateInlineTextEditor(_ textView: NSTextView) {
+        func focus(_ textView: NSTextView) {
+            NSApp.activate(ignoringOtherApps: true)
+            guard let window = textView.window, textView.superview != nil else { return }
+            window.makeKeyAndOrderFront(nil)
+            if window.firstResponder !== textView {
+                window.makeFirstResponder(textView)
+            }
+            textView.setSelectedRange(NSRange(location: textView.string.count, length: 0))
+        }
+
+        focus(textView)
+
+        DispatchQueue.main.async { [weak textView] in
+            guard let textView else { return }
+            focus(textView)
+            DispatchQueue.main.async { [weak textView] in
+                guard let textView else { return }
+                focus(textView)
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak textView] in
+            guard let textView else { return }
+            focus(textView)
+        }
+    }
+
+    private func activatePendingTextEditorIfNeeded() {
+        guard let annotationID = pendingTextActivationAnnotationID else { return }
+        pendingTextActivationAnnotationID = nil
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.beginInlineTextEditing(annotationID: annotationID)
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -1290,9 +1579,21 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         if let editor = inlineTextEditorView, !editor.frame.contains(point) {
             finishInlineTextEditing(commit: true)
         }
-        window?.makeFirstResponder(self)
+
+        if let selected = document.selectedAnnotation,
+           selected.deleteButtonRect(scale: interactionScale).contains(point) {
+            deleteSelection()
+            return
+        }
+
+        if let cropRect = document.cropRect,
+           cropDeleteButtonRect(for: cropRect, scale: interactionScale).contains(point) {
+            clearCrop()
+            return
+        }
 
         if tool == .crop {
+            window?.makeFirstResponder(self)
             if let handle = cropHandle(at: point) {
                 document.beginInteraction(actionName: "Resize Crop")
                 cropActiveHandle = handle
@@ -1316,12 +1617,14 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         }
 
         if tool == .hand {
+            window?.makeFirstResponder(self)
             handPanLastPoint = point
             invalidateCursorState()
             return
         }
 
         if let selected = document.selectedAnnotation, let handle = selected.handle(at: point, scale: interactionScale) {
+            window?.makeFirstResponder(self)
             document.beginInteraction(actionName: "Resize Annotation")
             activeHandle = handle
             onSelectionChanged?(selected)
@@ -1331,15 +1634,17 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
 
         if let hitAnnotation = document.annotation(at: point) {
             document.selectAnnotation(id: hitAnnotation.id)
-            document.beginInteraction(actionName: "Move Annotation")
-            movingLastPoint = point
             onSelectionChanged?(document.selectedAnnotation)
             needsDisplay = true
 
             if tool == .text, hitAnnotation.kind == .text, event.clickCount >= 2 {
                 beginInlineTextEditing(annotationID: hitAnnotation.id)
+                return
             }
 
+            window?.makeFirstResponder(self)
+            document.beginInteraction(actionName: "Move Annotation")
+            movingLastPoint = point
             return
         }
 
@@ -1349,7 +1654,8 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         switch tool {
         case .hand:
             break
-        case .arrow, .line, .rectangle:
+        case .arrow, .line, .rectangle, .detail:
+            window?.makeFirstResponder(self)
             creationDragStart = point
             creationDragCurrent = point
         case .text:
@@ -1359,13 +1665,14 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
                 color: activeColor,
                 fontSize: activeTextFontSize,
                 alignment: activeTextAlignment,
-                showsBackground: activeTextShowsBackground
+                showsBackground: activeTextShowsBackground,
+                backgroundColor: activeTextBackgroundColor
             )
             document.performUndoableChange(actionName: "Add Text") {
                 document.addAnnotation(annotation)
             }
             notifyDocumentDidChange()
-            beginInlineTextEditing(annotationID: annotation.id)
+            pendingTextActivationAnnotationID = annotation.id
         case .crop:
             break
         }
@@ -1472,6 +1779,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         guard let creationDragStart else {
             document.endInteraction()
             notifyDocumentDidChange()
+            activatePendingTextEditorIfNeeded()
             return
         }
 
@@ -1522,12 +1830,26 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
                     document.addAnnotation(.obscure(rect, style: .redact))
                 }
             }
+        case .detail:
+            guard hypot(point.x - creationDragStart.x, point.y - creationDragStart.y) > 12 else {
+                return
+            }
+            let detail = ScreenshotEditorAnnotation.detail(
+                sourcePoint: creationDragStart,
+                bubbleCenter: point,
+                color: activeColor,
+                scale: activeDetailScale
+            )
+            document.performUndoableChange(actionName: "Add Detail Callout") {
+                document.addAnnotation(detail)
+            }
         case .hand, .crop, .text:
             break
         }
 
         document.endInteraction()
         notifyDocumentDidChange()
+        activatePendingTextEditorIfNeeded()
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -1622,6 +1944,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
                     scale: interactionScale,
                     showsHandles: activeHandle != nil || hoveredAnnotationID == annotation.id
                 )
+                drawDeleteButton(for: annotation, scale: interactionScale, isHovered: isHoveringSelectedDeleteButton)
             }
         }
 
@@ -1638,6 +1961,11 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             cropPath.setLineDash(dash, count: dash.count, phase: 0)
             cropPath.lineWidth = 2 / interactionScale
             cropPath.stroke()
+            drawDeleteButton(
+                in: cropDeleteButtonRect(for: cropRect, scale: interactionScale),
+                scale: interactionScale,
+                isHovered: isHoveringCropDeleteButton
+            )
 
             if cropActiveHandle != nil || isHoveringCrop {
                 for handleRect in cropHandleRects(for: cropRect).values {
@@ -1702,6 +2030,13 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             case .redact:
                 return .obscure(rect, style: .redact)
             }
+        case .detail:
+            return .detail(
+                sourcePoint: creationDragStart,
+                bubbleCenter: creationDragCurrent,
+                color: activeColor,
+                scale: activeDetailScale
+            )
         case .crop, .text:
             return nil
         }
@@ -1731,6 +2066,18 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
     private func cropHandle(at point: CGPoint) -> ScreenshotAnnotationHandle? {
         guard let cropRect = document.cropRect else { return nil }
         return cropHandleRects(for: cropRect).first(where: { $0.value.contains(point) })?.key
+    }
+
+    func cropDeleteButtonRect(for rect: CGRect, scale: CGFloat) -> CGRect {
+        let size: CGFloat = max(16 / scale, 18)
+        let inset: CGFloat = max(6 / scale, 6)
+        let normalized = rect.standardized
+        return CGRect(
+            x: normalized.maxX - size / 2,
+            y: normalized.minY - size / 2 - inset,
+            width: size,
+            height: size
+        )
     }
 
     private func cropHandleRects(for rect: CGRect) -> [ScreenshotAnnotationHandle: CGRect] {
@@ -1783,6 +2130,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         } else {
             nextHoveredAnnotationID = nil
         }
+        let nextIsHoveringDeleteButton = document.selectedAnnotation?.deleteButtonRect(scale: interactionScale).contains(point) == true
 
         let nextIsHoveringCrop: Bool
         if tool == .crop {
@@ -1790,13 +2138,19 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         } else {
             nextIsHoveringCrop = false
         }
+        let nextIsHoveringCropDeleteButton = document.cropRect.map { cropDeleteButtonRect(for: $0, scale: interactionScale).contains(point) } == true
 
-        guard hoveredAnnotationID != nextHoveredAnnotationID || isHoveringCrop != nextIsHoveringCrop else {
+        guard hoveredAnnotationID != nextHoveredAnnotationID
+                || isHoveringCrop != nextIsHoveringCrop
+                || isHoveringSelectedDeleteButton != nextIsHoveringDeleteButton
+                || isHoveringCropDeleteButton != nextIsHoveringCropDeleteButton else {
             return
         }
 
         hoveredAnnotationID = nextHoveredAnnotationID
         isHoveringCrop = nextIsHoveringCrop
+        isHoveringSelectedDeleteButton = nextIsHoveringDeleteButton
+        isHoveringCropDeleteButton = nextIsHoveringCropDeleteButton
         needsDisplay = true
     }
 
@@ -1821,6 +2175,10 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
                 return
             }
             if let selected = document.selectedAnnotation {
+                if selected.deleteButtonRect(scale: interactionScale).contains(point) {
+                    NSCursor.pointingHand.set()
+                    return
+                }
                 if let handle = selected.handle(at: point, scale: interactionScale) {
                     cursor(for: handle).set()
                     return
@@ -1841,6 +2199,11 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         }
         if cropMoveLastPoint != nil {
             NSCursor.closedHand.set()
+            return
+        }
+        if let cropRect = document.cropRect,
+           cropDeleteButtonRect(for: cropRect, scale: interactionScale).contains(point) {
+            NSCursor.pointingHand.set()
             return
         }
         if let handle = cropHandle(at: point) {
@@ -1907,6 +2270,36 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         needsDisplay = true
         invalidateCursorState()
     }
+
+    private func drawDeleteButton(for annotation: ScreenshotEditorAnnotation, scale: CGFloat, isHovered: Bool) {
+        drawDeleteButton(in: annotation.deleteButtonRect(scale: scale), scale: scale, isHovered: isHovered)
+    }
+
+    private func drawDeleteButton(in buttonRect: CGRect, scale: CGFloat, isHovered: Bool) {
+        let path = NSBezierPath(ovalIn: buttonRect)
+        let fillColor = isHovered
+            ? NSColor.systemRed.withAlphaComponent(0.94)
+            : NSColor.windowBackgroundColor.withAlphaComponent(0.82)
+        fillColor.setFill()
+        path.fill()
+        let strokeColor = isHovered
+            ? NSColor.systemRed
+            : NSColor.systemRed.withAlphaComponent(0.35)
+        strokeColor.setStroke()
+        path.lineWidth = 1 / scale
+        path.stroke()
+
+        let inset = buttonRect.width * 0.28
+        let crossPath = NSBezierPath()
+        crossPath.move(to: CGPoint(x: buttonRect.minX + inset, y: buttonRect.minY + inset))
+        crossPath.line(to: CGPoint(x: buttonRect.maxX - inset, y: buttonRect.maxY - inset))
+        crossPath.move(to: CGPoint(x: buttonRect.maxX - inset, y: buttonRect.minY + inset))
+        crossPath.line(to: CGPoint(x: buttonRect.minX + inset, y: buttonRect.maxY - inset))
+        (isHovered ? NSColor.white : NSColor.systemRed).setStroke()
+        crossPath.lineWidth = max(1.5 / scale, 1.5)
+        crossPath.lineCapStyle = .round
+        crossPath.stroke()
+    }
 }
 
 private extension CGPoint {
@@ -1931,6 +2324,12 @@ private extension CGPoint {
         let t = max(0, min(1, ((x - start.x) * dx + (y - start.y) * dy) / (dx * dx + dy * dy)))
         let projection = CGPoint(x: start.x + t * dx, y: start.y + t * dy)
         return hypot(x - projection.x, y - projection.y)
+    }
+}
+
+private extension CGRect {
+    var centerPoint: CGPoint {
+        CGPoint(x: midX, y: midY)
     }
 }
 
