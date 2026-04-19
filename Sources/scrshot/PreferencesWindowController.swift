@@ -49,6 +49,8 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
     private let timestampTemplateField = NSTextField()
     private let launchAtLoginButton = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
     private let revealSavedFileButton = NSButton(checkboxWithTitle: "Reveal saved file in Finder after export", target: nil, action: nil)
+    private let captureSoundButton = NSButton(checkboxWithTitle: "Play shutter sound after capture", target: nil, action: nil)
+    private let captureSoundPopupButton = NSPopUpButton()
     private let screenRecordingStatusLabel = NSTextField(labelWithString: "")
     private let microphoneStatusLabel = NSTextField(labelWithString: "")
 
@@ -133,6 +135,16 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
         revealSavedFileButton.target = self
         revealSavedFileButton.action = #selector(revealSavedFileChanged(_:))
 
+        captureSoundButton.target = self
+        captureSoundButton.action = #selector(captureSoundChanged(_:))
+
+        for sound in AppPreferences.CaptureSound.allCases {
+            captureSoundPopupButton.addItem(withTitle: sound.title)
+            captureSoundPopupButton.lastItem?.representedObject = sound
+        }
+        captureSoundPopupButton.target = self
+        captureSoundPopupButton.action = #selector(captureSoundSelectionChanged(_:))
+
         let refreshPermissionsButton = NSButton(title: "Refresh", target: self, action: #selector(refreshPermissions))
         refreshPermissionsButton.bezelStyle = .rounded
         let openScreenRecordingButton = NSButton(title: "Screen Recording Settings", target: self, action: #selector(openScreenRecordingSettings))
@@ -177,6 +189,7 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
             microphoneStatusRow,
             permissionsNoteLabel,
             revealSavedFileButton,
+            makeRow(label: captureSoundButton, mainView: captureSoundPopupButton, trailingView: nil),
             noteLabel,
             resetButton,
         ])
@@ -195,6 +208,7 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
             themePopupButton.widthAnchor.constraint(equalToConstant: 160),
             exportBehaviorPopupButton.widthAnchor.constraint(equalToConstant: 180),
             recordingFormatPopupButton.widthAnchor.constraint(equalToConstant: 120),
+            captureSoundPopupButton.widthAnchor.constraint(equalToConstant: 160),
             fileNamePrefixField.widthAnchor.constraint(equalToConstant: 280),
             timestampTemplateField.widthAnchor.constraint(equalToConstant: 280),
             saveLocationControl.widthAnchor.constraint(greaterThanOrEqualToConstant: 280),
@@ -275,6 +289,18 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
     }
 
     @objc
+    private func captureSoundChanged(_ sender: NSButton) {
+        preferences.playsCaptureSound = sender.state == .on
+        captureSoundPopupButton.isEnabled = sender.state == .on
+    }
+
+    @objc
+    private func captureSoundSelectionChanged(_ sender: NSPopUpButton) {
+        guard let sound = sender.selectedItem?.representedObject as? AppPreferences.CaptureSound else { return }
+        preferences.captureSound = sound
+    }
+
+    @objc
     private func resetToDefaults() {
         preferences.resetToDefaults()
         syncFromPreferences()
@@ -311,6 +337,8 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
         timestampTemplateField.stringValue = preferences.timestampTemplate
         launchAtLoginButton.state = preferences.launchAtLogin ? .on : .off
         revealSavedFileButton.state = preferences.revealSavedFile ? .on : .off
+        captureSoundButton.state = preferences.playsCaptureSound ? .on : .off
+        captureSoundPopupButton.isEnabled = preferences.playsCaptureSound
 
         if let themeIndex = AppPreferences.Theme.allCases.firstIndex(of: preferences.theme) {
             themePopupButton.selectItem(at: themeIndex)
@@ -322,6 +350,10 @@ private final class PreferencesViewController: NSViewController, NSTextFieldDele
 
         if let formatIndex = AppPreferences.RecordingFileFormat.allCases.firstIndex(of: preferences.recordingFileFormat) {
             recordingFormatPopupButton.selectItem(at: formatIndex)
+        }
+
+        if let soundIndex = AppPreferences.CaptureSound.allCases.firstIndex(of: preferences.captureSound) {
+            captureSoundPopupButton.selectItem(at: soundIndex)
         }
         refreshPermissionStatus()
     }

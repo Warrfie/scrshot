@@ -1,4 +1,5 @@
 import XCTest
+import ImageIO
 import CoreGraphics
 import AppKit
 import Carbon
@@ -234,6 +235,52 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         XCTAssertEqual(rendered?.height, 3)
     }
 
+    func testRenderedImageCropsBottomLeftRegionUsingCanvasCoordinates() {
+        let image = makeImage(
+            width: 6,
+            height: 6,
+            pixels: [
+                rgba(255, 0, 0), rgba(255, 0, 0), rgba(255, 0, 0), rgba(0, 255, 0), rgba(0, 255, 0), rgba(0, 255, 0),
+                rgba(255, 0, 0), rgba(255, 0, 0), rgba(255, 0, 0), rgba(0, 255, 0), rgba(0, 255, 0), rgba(0, 255, 0),
+                rgba(255, 0, 0), rgba(255, 0, 0), rgba(255, 0, 0), rgba(0, 255, 0), rgba(0, 255, 0), rgba(0, 255, 0),
+                rgba(0, 0, 255), rgba(0, 0, 255), rgba(0, 0, 255), rgba(255, 255, 0), rgba(255, 255, 0), rgba(255, 255, 0),
+                rgba(0, 0, 255), rgba(0, 0, 255), rgba(0, 0, 255), rgba(255, 255, 0), rgba(255, 255, 0), rgba(255, 255, 0),
+                rgba(0, 0, 255), rgba(0, 0, 255), rgba(0, 0, 255), rgba(255, 255, 0), rgba(255, 255, 0), rgba(255, 255, 0),
+            ]
+        )
+        let document = ScreenshotEditorDocument(image: image)
+
+        XCTAssertTrue(document.applyCrop(CGRect(x: 0, y: 3, width: 3, height: 3)))
+
+        let rendered = document.renderedImage()
+
+        XCTAssertEqual(rendered?.width, 3)
+        XCTAssertEqual(rendered?.height, 3)
+        XCTAssertEqual(pixel(atX: 0, y: 0, in: rendered!), rgba(0, 0, 255))
+        XCTAssertEqual(pixel(atX: 2, y: 2, in: rendered!), rgba(0, 0, 255))
+    }
+
+    func testRenderedImagePreservesBaseImageOrientationWithoutAnnotations() {
+        let image = makeImage(
+            width: 4,
+            height: 4,
+            pixels: [
+                rgba(255, 0, 0), rgba(255, 0, 0), rgba(0, 255, 0), rgba(0, 255, 0),
+                rgba(255, 0, 0), rgba(255, 0, 0), rgba(0, 255, 0), rgba(0, 255, 0),
+                rgba(0, 0, 255), rgba(0, 0, 255), rgba(255, 255, 0), rgba(255, 255, 0),
+                rgba(0, 0, 255), rgba(0, 0, 255), rgba(255, 255, 0), rgba(255, 255, 0),
+            ]
+        )
+        let document = ScreenshotEditorDocument(image: image)
+
+        let rendered = try! XCTUnwrap(document.renderedImage())
+
+        XCTAssertEqual(pixel(atX: 0, y: 0, in: rendered), rgba(255, 0, 0))
+        XCTAssertEqual(pixel(atX: 3, y: 0, in: rendered), rgba(0, 255, 0))
+        XCTAssertEqual(pixel(atX: 0, y: 3, in: rendered), rgba(0, 0, 255))
+        XCTAssertEqual(pixel(atX: 3, y: 3, in: rendered), rgba(255, 255, 0))
+    }
+
     func testMoveCropClampsToCanvasBounds() {
         let document = ScreenshotEditorDocument(image: makeImage(width: 10, height: 10, pixels: Array(repeating: rgba(1, 1, 1), count: 100)))
         XCTAssertTrue(document.applyCrop(CGRect(x: 7, y: 7, width: 3, height: 3)))
@@ -272,6 +319,16 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
 
         XCTAssertNotNil(rendered)
         XCTAssertNotEqual(pixel(atX: 4, y: 4, in: rendered!), rgba(255, 255, 255))
+    }
+
+    func testRenderedImageKeepsHighlightInTopLeftInsteadOfMirroringVertically() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 12, height: 12, pixels: Array(repeating: rgba(255, 255, 255), count: 144)))
+        document.addAnnotation(.highlight(CGRect(x: 1, y: 1, width: 4, height: 4), color: .systemRed))
+
+        let rendered = document.renderedImage()!
+
+        XCTAssertNotEqual(pixel(atX: 2, y: 2, in: rendered), rgba(255, 255, 255))
+        XCTAssertEqual(pixel(atX: 2, y: 9, in: rendered), rgba(255, 255, 255))
     }
 
     func testSelectionDeleteButtonRectSitsNearTopRightOfSelectionBounds() {
@@ -324,6 +381,102 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         let rendered = document.renderedImage()
 
         XCTAssertEqual(pixel(atX: 16, y: 16, in: rendered!), rgba(0, 0, 0))
+    }
+
+    func testRenderedImageKeepsRedactInTopLeftInsteadOfMirroringVertically() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 12, height: 12, pixels: Array(repeating: rgba(255, 255, 255), count: 144)))
+        document.addAnnotation(.obscure(CGRect(x: 1, y: 1, width: 4, height: 4), style: .redact))
+
+        let rendered = document.renderedImage()!
+
+        XCTAssertEqual(pixel(atX: 2, y: 2, in: rendered), rgba(0, 0, 0))
+        XCTAssertEqual(pixel(atX: 2, y: 9, in: rendered), rgba(255, 255, 255))
+    }
+
+    func testRenderedImageKeepsArrowNearTopEdgeInsteadOfMirroringVertically() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 20, height: 20, pixels: Array(repeating: rgba(255, 255, 255), count: 400)))
+        document.addAnnotation(.arrow(
+            from: CGPoint(x: 2, y: 2),
+            to: CGPoint(x: 16, y: 2),
+            color: .black
+        ))
+
+        let rendered = document.renderedImage()!
+
+        XCTAssertNotEqual(pixel(atX: 10, y: 2, in: rendered), rgba(255, 255, 255))
+        XCTAssertEqual(pixel(atX: 10, y: 17, in: rendered), rgba(255, 255, 255))
+    }
+
+    func testRenderedImageKeepsArrowHeadAtEndPoint() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 80, height: 40, pixels: Array(repeating: rgba(255, 255, 255), count: 3_200)))
+        var annotation = ScreenshotEditorAnnotation.arrow(
+            from: CGPoint(x: 10, y: 20),
+            to: CGPoint(x: 60, y: 20),
+            color: .black
+        )
+        annotation.strokeWidth = 4
+        document.addAnnotation(annotation)
+
+        let rendered = document.renderedImage()!
+        let startHeadAreaPixel = pixel(atX: 20, y: 14, in: rendered)
+        let endHeadAreaPixel = pixel(atX: 50, y: 14, in: rendered)
+
+        XCTAssertEqual(startHeadAreaPixel, rgba(255, 255, 255))
+        XCTAssertNotEqual(endHeadAreaPixel, rgba(255, 255, 255))
+    }
+
+    func testRenderedImageKeepsLineNearTopEdgeInsteadOfMirroringVertically() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 20, height: 20, pixels: Array(repeating: rgba(255, 255, 255), count: 400)))
+        document.addAnnotation(.line(
+            from: CGPoint(x: 2, y: 2),
+            to: CGPoint(x: 16, y: 2),
+            color: .black
+        ))
+
+        let rendered = document.renderedImage()!
+
+        XCTAssertNotEqual(pixel(atX: 10, y: 2, in: rendered), rgba(255, 255, 255))
+        XCTAssertEqual(pixel(atX: 10, y: 17, in: rendered), rgba(255, 255, 255))
+    }
+
+    func testRenderedImagePreservesDiagonalLineGeometryWhenSaving() {
+        let baseImage = makeImage(width: 80, height: 80, pixels: Array(repeating: rgba(255, 255, 255), count: 6_400))
+        let document = ScreenshotEditorDocument(image: baseImage)
+        let annotation = ScreenshotEditorAnnotation.line(
+            from: CGPoint(x: 10, y: 14),
+            to: CGPoint(x: 58, y: 62),
+            color: .black
+        )
+        document.addAnnotation(annotation)
+
+        let rendered = document.renderedImage()!
+        let expected = renderExpectedFlippedBitmapImage(
+            baseImage: baseImage,
+            size: CGSize(width: 80, height: 80),
+            annotations: [annotation]
+        )!
+
+        XCTAssertLessThan(differingPixelCount(between: rendered, and: expected), 20)
+    }
+
+    func testRenderedImagePreservesDiagonalArrowGeometryWhenSaving() {
+        let baseImage = makeImage(width: 80, height: 80, pixels: Array(repeating: rgba(255, 255, 255), count: 6_400))
+        let document = ScreenshotEditorDocument(image: baseImage)
+        let annotation = ScreenshotEditorAnnotation.arrow(
+            from: CGPoint(x: 12, y: 16),
+            to: CGPoint(x: 60, y: 54),
+            color: .black
+        )
+        document.addAnnotation(annotation)
+
+        let rendered = document.renderedImage()!
+        let expected = renderExpectedFlippedBitmapImage(
+            baseImage: baseImage,
+            size: CGSize(width: 80, height: 80),
+            annotations: [annotation]
+        )!
+
+        XCTAssertLessThan(differingPixelCount(between: rendered, and: expected), 20)
     }
 
     func testRenderedImageIncludesBlurAnnotation() {
@@ -431,6 +584,40 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
 
         XCTAssertGreaterThan(Int(bubbleCenterPixel.r), 200)
         XCTAssertLessThan(Int(bubbleCenterPixel.g), 120)
+    }
+
+    func testDetailCalloutPreservesVerticalOrientationInsideBubble() {
+        let width = 160
+        let height = 160
+        var basePixels = Array(repeating: rgba(18, 18, 18), count: width * height)
+
+        for y in 32..<44 {
+            for x in 34..<54 {
+                basePixels[y * width + x] = rgba(255, 40, 40)
+            }
+        }
+
+        for y in 44..<56 {
+            for x in 34..<54 {
+                basePixels[y * width + x] = rgba(40, 255, 40)
+            }
+        }
+
+        let baseImage = makeImage(width: width, height: height, pixels: basePixels)
+        let document = ScreenshotEditorDocument(image: baseImage)
+        document.addAnnotation(.detail(
+            sourcePoint: CGPoint(x: 44, y: 44),
+            bubbleCenter: CGPoint(x: 116, y: 96),
+            color: .systemRed,
+            scale: 5
+        ))
+
+        let rendered = document.renderedImage()!
+        let upperBubblePixel = pixel(atX: 116, y: 82, in: rendered)
+        let lowerBubblePixel = pixel(atX: 116, y: 110, in: rendered)
+
+        XCTAssertGreaterThan(Int(upperBubblePixel.r), Int(upperBubblePixel.g))
+        XCTAssertGreaterThan(Int(lowerBubblePixel.g), Int(lowerBubblePixel.r))
     }
 
     func testCropAndAnnotationRenderTogether() {
@@ -590,6 +777,43 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         let rightAlignedRendered = rightAlignedDocument.renderedImage()!
 
         XCTAssertGreaterThan(differingPixelCount(between: leftAlignedRendered, and: rightAlignedRendered), 100)
+    }
+
+    func testRenderedImagePreservesTextOrientationWhenSaving() {
+        let basePixels = Array(repeating: rgba(255, 255, 255), count: 220 * 140)
+        let baseImage = makeImage(width: 220, height: 140, pixels: basePixels)
+        let document = ScreenshotEditorDocument(image: baseImage)
+        let annotation = ScreenshotEditorAnnotation.text(
+            "pqgy",
+            at: CGPoint(x: 24, y: 28),
+            color: .black,
+            fontSize: 34,
+            alignment: .left,
+            showsBackground: true,
+            backgroundColor: NSColor.systemYellow.withAlphaComponent(0.65)
+        )
+        document.addAnnotation(annotation)
+        document.updateTextLayout(for: document.selectedAnnotation!.id, size: CGSize(width: 170, height: 60))
+
+        let rendered = document.renderedImage()!
+        let textBounds = document.selectedAnnotation!.rect.standardized.integral
+        var weightedDarkPixelY = 0
+        var darkPixelCount = 0
+
+        for y in Int(textBounds.minY)..<Int(textBounds.maxY) {
+            for x in Int(textBounds.minX)..<Int(textBounds.maxX) {
+                let pixelValue = pixel(atX: x, y: y, in: rendered)
+                let brightness = Int(pixelValue.r) + Int(pixelValue.g) + Int(pixelValue.b)
+                if brightness < 180 {
+                    weightedDarkPixelY += y
+                    darkPixelCount += 1
+                }
+            }
+        }
+
+        XCTAssertGreaterThan(darkPixelCount, 100)
+        let darkPixelCenterY = Double(weightedDarkPixelY) / Double(darkPixelCount)
+        XCTAssertGreaterThan(darkPixelCenterY, Double(textBounds.midY))
     }
 
     func testRenderedImageReflectsTextBackgroundColorChanges() {
@@ -876,6 +1100,7 @@ final class AppPreferencesTests: XCTestCase {
         preferences.revealSavedFile = true
         preferences.recordingAudioSource = .systemAudioAndMicrophone
         preferences.recordingFileFormat = .mp4
+        preferences.captureSound = .hero
 
         let reloaded = AppPreferences(defaults: defaults)
 
@@ -891,6 +1116,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(reloaded.revealSavedFile, true)
         XCTAssertEqual(reloaded.recordingAudioSource, .systemAudioAndMicrophone)
         XCTAssertEqual(reloaded.recordingFileFormat, .mp4)
+        XCTAssertEqual(reloaded.captureSound, .hero)
     }
 
     func testPreferencesDefaultSaveDirectoryEndsWithScreenshots() {
@@ -929,6 +1155,8 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.fileNamePrefix, "screenshot")
         XCTAssertEqual(preferences.timestampTemplate, "yyyy-MM-dd_HH-mm-ss")
         XCTAssertEqual(preferences.revealSavedFile, false)
+        XCTAssertEqual(preferences.playsCaptureSound, true)
+        XCTAssertEqual(preferences.captureSound, .grab)
         XCTAssertEqual(preferences.recordingAudioSource, .systemAudio)
         XCTAssertEqual(preferences.recordingFileFormat, .mov)
     }
@@ -944,6 +1172,8 @@ final class AppPreferencesTests: XCTestCase {
         preferences.fileNamePrefix = " custom:name "
         preferences.timestampTemplate = "yyyyMMdd"
         preferences.revealSavedFile = true
+        preferences.playsCaptureSound = false
+        preferences.captureSound = .submarine
         preferences.recordingAudioSource = .microphoneOnly
         preferences.recordingFileFormat = .mp4
         preferences.resetToDefaults()
@@ -953,8 +1183,132 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.fileNamePrefix, "screenshot")
         XCTAssertEqual(preferences.timestampTemplate, "yyyy-MM-dd_HH-mm-ss")
         XCTAssertEqual(preferences.revealSavedFile, false)
+        XCTAssertEqual(preferences.playsCaptureSound, true)
+        XCTAssertEqual(preferences.captureSound, .grab)
         XCTAssertEqual(preferences.recordingAudioSource, .systemAudio)
         XCTAssertEqual(preferences.recordingFileFormat, .mov)
+    }
+}
+
+@MainActor
+final class AppTerminationStateTrackerTests: XCTestCase {
+    func testMarkLaunchStartedReportsPreviousCrashWhenLastRunWasUnclean() {
+        let suiteName = "scrshot-tests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(false, forKey: AppTerminationStateTracker.Keys.lastRunEndedCleanly)
+        let tracker = AppTerminationStateTracker(defaults: defaults)
+
+        let didPreviousRunCrash = MainActor.assumeIsolated {
+            tracker.markLaunchStarted(now: Date(timeIntervalSince1970: 123))
+        }
+
+        XCTAssertTrue(didPreviousRunCrash)
+        XCTAssertEqual(defaults.object(forKey: AppTerminationStateTracker.Keys.lastRunEndedCleanly) as? Bool, false)
+        XCTAssertEqual(defaults.object(forKey: AppTerminationStateTracker.Keys.lastLaunchTimestamp) as? TimeInterval, 123)
+    }
+
+    func testMarkTerminatedCleanlyClearsCrashFlag() {
+        let suiteName = "scrshot-tests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let tracker = AppTerminationStateTracker(defaults: defaults)
+
+        MainActor.assumeIsolated {
+            _ = tracker.markLaunchStarted()
+            tracker.markTerminatedCleanly()
+        }
+
+        XCTAssertEqual(defaults.object(forKey: AppTerminationStateTracker.Keys.lastRunEndedCleanly) as? Bool, true)
+    }
+}
+
+@MainActor
+final class CaptureSoundPlayerTests: XCTestCase {
+    func testPlayCaptureSoundIfEnabledUsesNamedSoundWhenAvailable() {
+        let expectations = expectation(description: "named sound played")
+        var requestedSoundName: NSSound.Name?
+        let sound = TestSound {
+            expectations.fulfill()
+        }
+        let player = CaptureSoundPlayer(
+            namedSoundProvider: {
+                requestedSoundName = $0
+                return sound
+            },
+            beepPlayer: XCTFailingClosure("beep should not be used when named sound is available")
+        )
+        let preferences = makePreferencesForSoundTests()
+        preferences.playsCaptureSound = true
+        preferences.captureSound = .hero
+
+        let played = MainActor.assumeIsolated {
+            player.playCaptureSoundIfEnabled(preferences: preferences)
+        }
+
+        XCTAssertTrue(played)
+        XCTAssertEqual(requestedSoundName, "Hero")
+        wait(for: [expectations], timeout: 0.1)
+    }
+
+    func testPlayCaptureSoundIfEnabledFallsBackToBeepForExplicitBeepSelection() {
+        let expectations = expectation(description: "beep played")
+        let player = CaptureSoundPlayer(
+            namedSoundProvider: { _ in XCTFail("named sound should not be requested for system beep"); return nil },
+            beepPlayer: {
+                expectations.fulfill()
+            }
+        )
+        let preferences = makePreferencesForSoundTests()
+        preferences.playsCaptureSound = true
+        preferences.captureSound = .beep
+
+        let played = MainActor.assumeIsolated {
+            player.playCaptureSoundIfEnabled(preferences: preferences)
+        }
+
+        XCTAssertTrue(played)
+        wait(for: [expectations], timeout: 0.1)
+    }
+
+    func testPlayCaptureSoundIfEnabledFallsBackToBeepWhenNamedSoundMissing() {
+        let expectations = expectation(description: "beep played")
+        var requestedSoundName: NSSound.Name?
+        let player = CaptureSoundPlayer(
+            namedSoundProvider: {
+                requestedSoundName = $0
+                return nil
+            },
+            beepPlayer: {
+                expectations.fulfill()
+            }
+        )
+        let preferences = makePreferencesForSoundTests()
+        preferences.playsCaptureSound = true
+        preferences.captureSound = .glass
+
+        let played = MainActor.assumeIsolated {
+            player.playCaptureSoundIfEnabled(preferences: preferences)
+        }
+
+        XCTAssertTrue(played)
+        XCTAssertEqual(requestedSoundName, "Glass")
+        wait(for: [expectations], timeout: 0.1)
+    }
+
+    func testPlayCaptureSoundIfEnabledSkipsPlaybackWhenDisabled() {
+        let player = CaptureSoundPlayer(
+            namedSoundProvider: { _ in XCTFail("named sound should not be requested"); return nil },
+            beepPlayer: XCTFailingClosure("beep should not be used when sound is disabled")
+        )
+        let preferences = makePreferencesForSoundTests()
+        preferences.playsCaptureSound = false
+
+        let played = MainActor.assumeIsolated {
+            player.playCaptureSoundIfEnabled(preferences: preferences)
+        }
+
+        XCTAssertFalse(played)
     }
 }
 
@@ -1002,6 +1356,50 @@ final class ImageSaverTests: XCTestCase {
             "release-shot_\(formatter.string(from: fixedDate)).png"
         )
     }
+
+    @MainActor
+    func testSavePreservesRenderedLineOrientationInFinalPNG() throws {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 24, height: 24, pixels: Array(repeating: rgba(255, 255, 255), count: 576)))
+        document.addAnnotation(.line(
+            from: CGPoint(x: 3, y: 3),
+            to: CGPoint(x: 20, y: 3),
+            color: .black
+        ))
+        let rendered = try XCTUnwrap(document.renderedImage())
+
+        let saver = ImageSaver()
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("scrshot-image-saver-line-\(UUID().uuidString)", isDirectory: true)
+        let outputURL = try saver.save(image: rendered, directory: directory)
+        let savedImage = try XCTUnwrap(loadCGImage(from: outputURL))
+
+        XCTAssertNotEqual(pixel(atX: 12, y: 3, in: savedImage), rgba(255, 255, 255))
+        XCTAssertEqual(pixel(atX: 12, y: 20, in: savedImage), rgba(255, 255, 255))
+    }
+
+    func testSavePreservesBaseImageOrientationInFinalPNG() throws {
+        let source = makeImage(
+            width: 4,
+            height: 4,
+            pixels: [
+                rgba(255, 0, 0), rgba(255, 0, 0), rgba(0, 255, 0), rgba(0, 255, 0),
+                rgba(255, 0, 0), rgba(255, 0, 0), rgba(0, 255, 0), rgba(0, 255, 0),
+                rgba(0, 0, 255), rgba(0, 0, 255), rgba(255, 255, 0), rgba(255, 255, 0),
+                rgba(0, 0, 255), rgba(0, 0, 255), rgba(255, 255, 0), rgba(255, 255, 0),
+            ]
+        )
+
+        let saver = ImageSaver()
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("scrshot-image-saver-base-\(UUID().uuidString)", isDirectory: true)
+        let outputURL = try saver.save(image: source, directory: directory)
+        let savedImage = try XCTUnwrap(loadCGImage(from: outputURL))
+
+        XCTAssertEqual(pixel(atX: 0, y: 0, in: savedImage), rgba(255, 0, 0))
+        XCTAssertEqual(pixel(atX: 3, y: 0, in: savedImage), rgba(0, 255, 0))
+        XCTAssertEqual(pixel(atX: 0, y: 3, in: savedImage), rgba(0, 0, 255))
+        XCTAssertEqual(pixel(atX: 3, y: 3, in: savedImage), rgba(255, 255, 0))
+    }
 }
 
 private func makeImage(width: Int, height: Int, pixels: [RGBA]) -> CGImage {
@@ -1023,6 +1421,13 @@ private func makeImage(width: Int, height: Int, pixels: [RGBA]) -> CGImage {
         shouldInterpolate: false,
         intent: .defaultIntent
     )!
+}
+
+private func loadCGImage(from url: URL) -> CGImage? {
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+        return nil
+    }
+    return CGImageSourceCreateImageAtIndex(source, 0, nil)
 }
 
 
@@ -1083,8 +1488,80 @@ private func differingPixelCount(between lhs: CGImage, and rhs: CGImage) -> Int 
     return differingPixels
 }
 
+private func renderExpectedFlippedBitmapImage(
+    baseImage: CGImage,
+    size: CGSize,
+    annotations: [ScreenshotEditorAnnotation]
+) -> CGImage? {
+    let width = Int(size.width)
+    let height = Int(size.height)
+    guard width > 0, height > 0,
+          let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: width,
+            pixelsHigh: height,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 32
+          ),
+          let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+        return nil
+    }
+
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = context
+    NSColor.clear.setFill()
+    NSBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
+
+    NSGraphicsContext.saveGraphicsState()
+    let transform = NSAffineTransform()
+    transform.translateX(by: 0, yBy: size.height)
+    transform.scaleX(by: 1, yBy: -1)
+    transform.concat()
+    NSImage(cgImage: baseImage, size: size).draw(in: CGRect(origin: .zero, size: size))
+    for annotation in annotations {
+        annotation.draw(baseImage: baseImage)
+    }
+    NSGraphicsContext.restoreGraphicsState()
+
+    context.flushGraphics()
+    NSGraphicsContext.restoreGraphicsState()
+    return bitmap.cgImage
+}
+
 private func rgba(_ r: UInt8, _ g: UInt8, _ b: UInt8, _ a: UInt8 = 255) -> RGBA {
     RGBA(r, g, b, a)
+}
+
+@MainActor
+private func makePreferencesForSoundTests() -> AppPreferences {
+    let suiteName = "scrshot-tests-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defaults.removePersistentDomain(forName: suiteName)
+    return AppPreferences(defaults: defaults)
+}
+
+private final class TestSound: SoundPlayback, @unchecked Sendable {
+    private let onPlay: () -> Void
+
+    init(onPlay: @escaping () -> Void) {
+        self.onPlay = onPlay
+    }
+
+    func play() -> Bool {
+        onPlay()
+        return true
+    }
+}
+
+private func XCTFailingClosure(_ message: String) -> () -> Void {
+    {
+        XCTFail(message)
+    }
 }
 
 private struct RGBA: Equatable {

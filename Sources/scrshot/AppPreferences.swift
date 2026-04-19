@@ -20,6 +20,8 @@ final class AppPreferences {
         static let fileNamePrefix = "fileNamePrefix"
         static let timestampTemplate = "timestampTemplate"
         static let revealSavedFile = "revealSavedFile"
+        static let playsCaptureSound = "playsCaptureSound"
+        static let captureSound = "captureSound"
         static let recordingAudioSource = "recordingAudioSource"
         static let recordingFileFormat = "recordingFileFormat"
     }
@@ -129,6 +131,49 @@ final class AppPreferences {
         }
     }
 
+    enum CaptureSound: String, CaseIterable {
+        case grab
+        case glass
+        case hero
+        case submarine
+        case funk
+        case beep
+
+        var title: String {
+            switch self {
+            case .grab:
+                return "Grab"
+            case .glass:
+                return "Glass"
+            case .hero:
+                return "Hero"
+            case .submarine:
+                return "Submarine"
+            case .funk:
+                return "Funk"
+            case .beep:
+                return "System Beep"
+            }
+        }
+
+        var soundName: NSSound.Name? {
+            switch self {
+            case .grab:
+                return NSSound.Name("Grab")
+            case .glass:
+                return NSSound.Name("Glass")
+            case .hero:
+                return NSSound.Name("Hero")
+            case .submarine:
+                return NSSound.Name("Submarine")
+            case .funk:
+                return NSSound.Name("Funk")
+            case .beep:
+                return nil
+            }
+        }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -143,6 +188,8 @@ final class AppPreferences {
             Keys.fileNamePrefix: "screenshot",
             Keys.timestampTemplate: "yyyy-MM-dd_HH-mm-ss",
             Keys.revealSavedFile: false,
+            Keys.playsCaptureSound: true,
+            Keys.captureSound: CaptureSound.grab.rawValue,
             Keys.recordingAudioSource: RecordingAudioSource.systemAudio.rawValue,
             Keys.recordingFileFormat: RecordingFileFormat.mov.rawValue,
         ])
@@ -241,6 +288,27 @@ final class AppPreferences {
         }
     }
 
+    var playsCaptureSound: Bool {
+        get {
+            defaults.object(forKey: Keys.playsCaptureSound) as? Bool ?? true
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.playsCaptureSound)
+            notifyChange()
+        }
+    }
+
+    var captureSound: CaptureSound {
+        get {
+            let rawValue = defaults.string(forKey: Keys.captureSound) ?? CaptureSound.grab.rawValue
+            return CaptureSound(rawValue: rawValue) ?? .grab
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: Keys.captureSound)
+            notifyChange()
+        }
+    }
+
     var recordingAudioSource: RecordingAudioSource {
         get {
             let rawValue = defaults.string(forKey: Keys.recordingAudioSource) ?? RecordingAudioSource.systemAudio.rawValue
@@ -273,6 +341,8 @@ final class AppPreferences {
         defaults.removeObject(forKey: Keys.fileNamePrefix)
         defaults.removeObject(forKey: Keys.timestampTemplate)
         defaults.removeObject(forKey: Keys.revealSavedFile)
+        defaults.removeObject(forKey: Keys.playsCaptureSound)
+        defaults.removeObject(forKey: Keys.captureSound)
         defaults.removeObject(forKey: Keys.recordingAudioSource)
         defaults.removeObject(forKey: Keys.recordingFileFormat)
         notifyChange()

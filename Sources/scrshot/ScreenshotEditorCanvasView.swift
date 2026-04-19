@@ -94,6 +94,18 @@ enum ScreenshotEditorTool: String, CaseIterable {
     }
 }
 
+private func drawCGImageInTopLeftCoordinates(_ image: CGImage, in rect: CGRect) {
+    guard let cgContext = NSGraphicsContext.current?.cgContext else {
+        return
+    }
+
+    cgContext.saveGState()
+    cgContext.translateBy(x: rect.minX, y: rect.maxY)
+    cgContext.scaleBy(x: 1, y: -1)
+    cgContext.draw(image, in: CGRect(origin: .zero, size: rect.size))
+    cgContext.restoreGState()
+}
+
 enum ScreenshotAnnotationHandle {
     case topLeft
     case topRight
@@ -327,6 +339,52 @@ struct ScreenshotEditorAnnotation: Identifiable {
         case .text:
             drawText()
         }
+    }
+
+    func translatedBy(dx: CGFloat, dy: CGFloat) -> ScreenshotEditorAnnotation {
+        var adjusted = self
+        adjusted.rect = adjusted.rect.offsetBy(dx: dx, dy: dy)
+        if adjusted.kind == .detail {
+            adjusted.detailSourcePoint = adjusted.detailSourcePoint.offsetBy(dx: dx, dy: dy)
+        }
+        return adjusted
+    }
+
+    func exportAdjusted(forCanvasHeight canvasHeight: CGFloat) -> ScreenshotEditorAnnotation {
+        var adjusted = self
+
+        switch kind {
+        case .arrow:
+            let convertedStart = CGPoint(x: startPoint.x, y: canvasHeight - startPoint.y)
+            let convertedEnd = CGPoint(x: endPoint.x, y: canvasHeight - endPoint.y)
+            adjusted.rect = CGRect(
+                x: convertedStart.x,
+                y: convertedStart.y,
+                width: convertedEnd.x - convertedStart.x,
+                height: convertedEnd.y - convertedStart.y
+            )
+        case .line:
+            let convertedStart = CGPoint(x: startPoint.x, y: canvasHeight - startPoint.y)
+            let convertedEnd = CGPoint(x: endPoint.x, y: canvasHeight - endPoint.y)
+            adjusted.rect = CGRect(
+                x: convertedStart.x,
+                y: convertedStart.y,
+                width: convertedEnd.x - convertedStart.x,
+                height: convertedEnd.y - convertedStart.y
+            )
+        case .text:
+            let boxRect = rect.standardized
+            adjusted.rect = CGRect(
+                x: boxRect.minX,
+                y: canvasHeight - boxRect.maxY,
+                width: boxRect.width,
+                height: boxRect.height
+            )
+        case .highlight, .obscure, .detail:
+            break
+        }
+
+        return adjusted
     }
 
     func drawSelection(scale: CGFloat, showsHandles: Bool) {
@@ -612,7 +670,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
                     fallback.fill()
                     return
                 }
-                NSImage(cgImage: blurredImage, size: boxRect.size).draw(in: boxRect)
+                drawCGImageInTopLeftCoordinates(blurredImage, in: boxRect)
             }
         case .arrow, .line, .text, .detail:
             break
@@ -648,7 +706,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
         let clipPath = NSBezierPath(ovalIn: bubbleRect)
         NSGraphicsContext.saveGraphicsState()
         clipPath.addClip()
-        NSImage(cgImage: zoomedImage, size: sampleRect.size).draw(in: bubbleRect)
+        drawCGImageInTopLeftCoordinates(zoomedImage, in: bubbleRect)
         NSGraphicsContext.restoreGraphicsState()
 
         let bubblePath = NSBezierPath(ovalIn: bubbleRect)
@@ -894,13 +952,16 @@ final class ScreenshotEditorDocument {
     }
 
     func renderedImage() -> CGImage? {
-        guard let composed = makeBitmapImage(from: image, size: canvasSize, annotations: annotations) else {
+        guard let cropRect else {
+            return makeBitmapImage(from: image, size: canvasSize, annotations: annotations)
+        }
+        guard let croppedBaseImage = image.cropping(to: cropRect.integral) else {
             return nil
         }
-        guard let cropRect else {
-            return composed
-        }
-        return composed.cropping(to: cropRect.integral)
+        let croppedAnnotations = annotations
+            .filter { $0.selectionBounds.intersects(cropRect) }
+            .map { $0.translatedBy(dx: -cropRect.minX, dy: -cropRect.minY) }
+        return makeBitmapImage(from: croppedBaseImage, size: cropRect.size, annotations: croppedAnnotations)
     }
 
     func applyCrop(_ rect: CGRect) -> Bool {
@@ -1078,14 +1139,19 @@ final class ScreenshotEditorDocument {
         NSColor.clear.setFill()
         NSBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
 
+        NSGraphicsContext.saveGraphicsState()
         let transform = NSAffineTransform()
         transform.translateX(by: 0, yBy: size.height)
         transform.scaleX(by: 1, yBy: -1)
         transform.concat()
-
-        NSImage(cgImage: baseImage, size: size).draw(in: CGRect(origin: .zero, size: size))
-        for annotation in annotations {
+        drawCGImageInTopLeftCoordinates(baseImage, in: CGRect(origin: .zero, size: size))
+        for annotation in annotations where annotation.kind != .arrow && annotation.kind != .line && annotation.kind != .text {
             annotation.draw(baseImage: baseImage)
+        }
+        NSGraphicsContext.restoreGraphicsState()
+
+        for annotation in annotations where annotation.kind == .arrow || annotation.kind == .line || annotation.kind == .text {
+            annotation.exportAdjusted(forCanvasHeight: size.height).draw(baseImage: baseImage)
         }
 
         context.flushGraphics()
@@ -1935,7 +2001,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
 
         NSColor.windowBackgroundColor.setFill()
         dirtyRect.fill()
-        NSImage(cgImage: document.image, size: document.canvasSize).draw(in: bounds)
+        drawCGImageInTopLeftCoordinates(document.image, in: bounds)
 
         for annotation in document.annotations {
             annotation.draw(baseImage: document.image)

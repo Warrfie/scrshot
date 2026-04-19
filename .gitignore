@@ -1,5 +1,7 @@
 .build/
 DerivedData/
+.deriveddata-codex/
+.deriveddata-*/
 *.xcworkspace/
 *.xcodeproj/xcuserdata/
 *.xcuserdatad/

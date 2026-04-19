@@ -426,18 +426,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let appInstanceCoordinator = AppInstanceCoordinator()
     private let developmentAppRelaunchCoordinator = DevelopmentAppRelaunchCoordinator()
     private let permissionPreflightPolicy = PermissionPreflightPolicy()
+    private let terminationStateTracker = AppTerminationStateTracker()
     private lazy var coordinator = AppCoordinator(preferences: preferences)
     private lazy var preferencesWindowController = PreferencesWindowController(preferences: preferences)
     private var statusItemController: StatusItemController?
     private var preferencesObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppCrashMonitor.installUncaughtExceptionLogger()
         if activateExistingInstanceIfNeeded() {
             return
         }
         if relaunchFromStableDevAppIfNeeded() {
             return
         }
+        let didPreviousRunCrash = terminationStateTracker.markLaunchStarted()
         logRuntimeDiagnostics()
         AppLogger.shared.info(.appLifecycle, "applicationDidFinishLaunching")
         NSApplication.shared.setActivationPolicy(.accessory)
@@ -481,6 +484,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.coordinator.applyPreferences()
             }
         }
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
+            return
+        }
+        DispatchQueue.main.async {
+            CrashAlertPresenter.presentIfNeeded(
+                didPreviousRunCrash: didPreviousRunCrash,
+                logFilePath: AppLogger.shared.currentLogFilePath
+            )
+        }
     }
 
     private func activateExistingInstanceIfNeeded() -> Bool {
@@ -516,6 +528,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let preferencesObserver {
             NotificationCenter.default.removeObserver(preferencesObserver)
         }
+        terminationStateTracker.markTerminatedCleanly()
         AppLogger.shared.info(.appLifecycle, "applicationWillTerminate")
     }
 
@@ -602,6 +615,7 @@ final class AppCoordinator {
     private let clipboardManager = ClipboardManager()
     private let imageSaver = ImageSaver()
     private let permissionCoordinator = AppPermissionCoordinator()
+    private let captureSoundPlayer = CaptureSoundPlayer()
     private let preferences: AppPreferences
     private var editorController: ScreenshotEditorWindowController?
     private var isOpeningEditor = false
@@ -674,6 +688,7 @@ final class AppCoordinator {
             if let captureURL = screenCaptureService.lastCaptureURL {
                 AppLogger.shared.debug(.appCoordinator, "using raw capture file: \(captureURL.path)")
             }
+            _ = captureSoundPlayer.playCaptureSoundIfEnabled(preferences: preferences)
             openEditor(with: capturedDisplay.image, preferredDisplayID: capturedDisplay.displayID)
         } catch {
             isOpeningEditor = false
@@ -744,18 +759,17 @@ final class AppCoordinator {
 
     private func finalize(_ image: CGImage) {
         do {
-            let outputImage = verticallyFlippedImage(from: image) ?? image
             let shouldCopy = preferences.exportBehavior != .saveOnly
             let shouldSave = preferences.exportBehavior != .copyOnly
 
             if shouldCopy {
-                try clipboardManager.copy(image: outputImage)
+                try clipboardManager.copy(image: image)
             }
 
             var savedFileURL: URL?
             if shouldSave {
                 savedFileURL = try imageSaver.save(
-                    image: outputImage,
+                    image: image,
                     options: ImageSaver.Options(
                         directory: preferences.saveDirectoryURL,
                         fileNamePrefix: preferences.fileNamePrefix,
@@ -771,25 +785,5 @@ final class AppCoordinator {
             AppLogger.shared.error(.appCoordinator, "failed to finalize screenshot: \(error.localizedDescription)")
             NSSound.beep()
         }
-    }
-
-    private func verticallyFlippedImage(from image: CGImage) -> CGImage? {
-        guard let colorSpace = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB),
-              let context = CGContext(
-                data: nil,
-                width: image.width,
-                height: image.height,
-                bitsPerComponent: image.bitsPerComponent,
-                bytesPerRow: 0,
-                space: colorSpace,
-                bitmapInfo: image.bitmapInfo.rawValue
-              ) else {
-            return nil
-        }
-
-        context.translateBy(x: 0, y: CGFloat(image.height))
-        context.scaleBy(x: 1, y: -1)
-        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        return context.makeImage()
     }
 }
