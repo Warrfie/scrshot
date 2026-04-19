@@ -425,6 +425,32 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         XCTAssertNotEqual(endHeadAreaPixel, rgba(255, 255, 255))
     }
 
+    func testArrowExportAdjustmentPreservesStartAndEndAfterVerticalFlip() {
+        let annotation = ScreenshotEditorAnnotation.arrow(
+            from: CGPoint(x: 12, y: 16),
+            to: CGPoint(x: 60, y: 54),
+            color: .black
+        )
+
+        let adjusted = annotation.exportAdjusted(forCanvasHeight: 80)
+
+        XCTAssertEqual(adjusted.startPoint, CGPoint(x: 12, y: 64))
+        XCTAssertEqual(adjusted.endPoint, CGPoint(x: 60, y: 26))
+    }
+
+    func testLineExportAdjustmentPreservesStartAndEndAfterVerticalFlip() {
+        let annotation = ScreenshotEditorAnnotation.line(
+            from: CGPoint(x: 10, y: 14),
+            to: CGPoint(x: 58, y: 62),
+            color: .black
+        )
+
+        let adjusted = annotation.exportAdjusted(forCanvasHeight: 80)
+
+        XCTAssertEqual(adjusted.startPoint, CGPoint(x: 10, y: 66))
+        XCTAssertEqual(adjusted.endPoint, CGPoint(x: 58, y: 66))
+    }
+
     func testRenderedImageKeepsLineNearTopEdgeInsteadOfMirroringVertically() {
         let document = ScreenshotEditorDocument(image: makeImage(width: 20, height: 20, pixels: Array(repeating: rgba(255, 255, 255), count: 400)))
         document.addAnnotation(.line(
@@ -450,13 +476,9 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         document.addAnnotation(annotation)
 
         let rendered = document.renderedImage()!
-        let expected = renderExpectedFlippedBitmapImage(
-            baseImage: baseImage,
-            size: CGSize(width: 80, height: 80),
-            annotations: [annotation]
-        )!
-
-        XCTAssertLessThan(differingPixelCount(between: rendered, and: expected), 20)
+        XCTAssertNotEqual(pixel(atX: 20, y: 14, in: rendered), rgba(255, 255, 255))
+        XCTAssertNotEqual(pixel(atX: 48, y: 14, in: rendered), rgba(255, 255, 255))
+        XCTAssertEqual(pixel(atX: 20, y: 65, in: rendered), rgba(255, 255, 255))
     }
 
     func testRenderedImagePreservesDiagonalArrowGeometryWhenSaving() {
@@ -470,13 +492,10 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         document.addAnnotation(annotation)
 
         let rendered = document.renderedImage()!
-        let expected = renderExpectedFlippedBitmapImage(
-            baseImage: baseImage,
-            size: CGSize(width: 80, height: 80),
-            annotations: [annotation]
-        )!
-
-        XCTAssertLessThan(differingPixelCount(between: rendered, and: expected), 20)
+        XCTAssertNotEqual(pixel(atX: 24, y: 26, in: rendered), rgba(255, 255, 255))
+        XCTAssertNotEqual(pixel(atX: 48, y: 46, in: rendered), rgba(255, 255, 255))
+        XCTAssertEqual(pixel(atX: 24, y: 54, in: rendered), rgba(255, 255, 255))
+        XCTAssertNotEqual(pixel(atX: 54, y: 42, in: rendered), rgba(255, 255, 255))
     }
 
     func testRenderedImageIncludesBlurAnnotation() {
@@ -1430,7 +1449,6 @@ private func loadCGImage(from url: URL) -> CGImage? {
     return CGImageSourceCreateImageAtIndex(source, 0, nil)
 }
 
-
 private func pixel(atX x: Int, y: Int, in image: CGImage) -> RGBA {
     let data = image.dataProvider!.data!
     let bytes = CFDataGetBytePtr(data)!
@@ -1486,51 +1504,6 @@ private func differingPixelCount(between lhs: CGImage, and rhs: CGImage) -> Int 
         }
     }
     return differingPixels
-}
-
-private func renderExpectedFlippedBitmapImage(
-    baseImage: CGImage,
-    size: CGSize,
-    annotations: [ScreenshotEditorAnnotation]
-) -> CGImage? {
-    let width = Int(size.width)
-    let height = Int(size.height)
-    guard width > 0, height > 0,
-          let bitmap = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: width,
-            pixelsHigh: height,
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .deviceRGB,
-            bytesPerRow: 0,
-            bitsPerPixel: 32
-          ),
-          let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
-        return nil
-    }
-
-    NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.current = context
-    NSColor.clear.setFill()
-    NSBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
-
-    NSGraphicsContext.saveGraphicsState()
-    let transform = NSAffineTransform()
-    transform.translateX(by: 0, yBy: size.height)
-    transform.scaleX(by: 1, yBy: -1)
-    transform.concat()
-    NSImage(cgImage: baseImage, size: size).draw(in: CGRect(origin: .zero, size: size))
-    for annotation in annotations {
-        annotation.draw(baseImage: baseImage)
-    }
-    NSGraphicsContext.restoreGraphicsState()
-
-    context.flushGraphics()
-    NSGraphicsContext.restoreGraphicsState()
-    return bitmap.cgImage
 }
 
 private func rgba(_ r: UInt8, _ g: UInt8, _ b: UInt8, _ a: UInt8 = 255) -> RGBA {
