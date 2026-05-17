@@ -1,0 +1,40 @@
+name: Release Artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-dmg:
+    name: Build DMG Artifact
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Show Xcode Version
+        run: xcodebuild -version
+
+      - name: Build DMG
+        env:
+          DMG_BASENAME: scrshot-${{ github.sha }}
+          OUTPUT_DIR: ${{ github.workspace }}/build/artifacts
+          DERIVED_DATA_PATH: ${{ runner.temp }}/scrshot-release-derived-data
+        run: ./scripts/build-dmg.sh
+
+      - name: Upload DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrshot-dmg-${{ github.sha }}
+          path: |
+            build/artifacts/*.dmg
+            build/artifacts/*.sha256
+          if-no-files-found: error
+          retention-days: 14

@@ -195,6 +195,20 @@ Diagnostics are used for:
 xcodebuild -project scrshot.xcodeproj -scheme scrshot -configuration Debug -derivedDataPath /tmp/scrshot-derived CODE_SIGNING_ALLOWED=NO build
 ```
 
+### Build DMG Artifact
+
+```bash
+chmod +x scripts/build-dmg.sh
+./scripts/build-dmg.sh
+```
+
+By default this produces:
+
+- `build/artifacts/scrshot-macos.dmg`
+- `build/artifacts/scrshot-macos.sha256`
+
+The GitHub Actions workflow `.github/workflows/release-artifacts.yml` uses the same script and uploads the generated `.dmg` plus checksum as downloadable workflow artifacts.
+
 ## Test
 
 ```bash
