@@ -309,13 +309,13 @@ final class ScreenCaptureService {
             debugLog("selected screen unavailable")
         }
 
-        if #available(macOS 15.2, *), let capturedScreen = captureWithScreenCaptureKitRect() {
-            debugLog("using ScreenCaptureKit rect backend image=\(capturedScreen.image.width)x\(capturedScreen.image.height)")
+        if #available(macOS 14.0, *), let capturedScreen = captureWithScreenCaptureKitDisplayFilter() {
+            debugLog("using ScreenCaptureKit display-filter backend image=\(capturedScreen.image.width)x\(capturedScreen.image.height)")
             return capturedScreen
         }
 
-        if #available(macOS 14.0, *), let capturedScreen = captureWithScreenCaptureKitDisplayFilter() {
-            debugLog("using ScreenCaptureKit display-filter backend image=\(capturedScreen.image.width)x\(capturedScreen.image.height)")
+        if #available(macOS 15.2, *), let capturedScreen = captureWithScreenCaptureKitRect() {
+            debugLog("using ScreenCaptureKit rect backend image=\(capturedScreen.image.width)x\(capturedScreen.image.height)")
             return capturedScreen
         }
 
@@ -412,17 +412,7 @@ final class ScreenCaptureService {
             return nil
         }
 
-        let windowsOnDisplay = shareableContent.windows.filter { window in
-            window.frame.intersects(scDisplay.frame)
-        }
-        let windowTitles = windowsOnDisplay.prefix(10).map { window in
-            let app = window.owningApplication?.applicationName ?? "unknown-app"
-            let title = window.title ?? "untitled"
-            return "\(app)::\(title)"
-        }.joined(separator: " | ")
-        debugLog("ScreenCaptureKit display-filter backend: matching windows=\(windowsOnDisplay.count) [\(windowTitles)]")
-
-        let filter = SCContentFilter(display: scDisplay, including: windowsOnDisplay)
+        let filter = SCContentFilter(display: scDisplay, excludingApplications: [], exceptingWindows: [])
         let configuration = SCStreamConfiguration()
         let scaleFactor = selection.screen.backingScaleFactor
         configuration.width = max(1, Int(scDisplay.frame.width * scaleFactor))
@@ -556,12 +546,4 @@ final class ScreenCaptureService {
         return (screen, index + 1)
     }
 
-}
-extension NSScreen {
-    var displayID: CGDirectDisplayID? {
-        guard let screenNumber = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-            return nil
-        }
-        return CGDirectDisplayID(screenNumber.uint32Value)
-    }
 }

@@ -1,0 +1,636 @@
+import AppKit
+import Carbon
+import SwiftUI
+import UniformTypeIdentifiers
+
+@MainActor
+final class PreferencesWindowController: NSWindowController {
+    private let hostingController: NSHostingController<PreferencesSceneView>
+
+    init(preferences: AppPreferences) {
+        self.hostingController = NSHostingController(rootView: PreferencesSceneView(preferences: preferences))
+
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 700, height: 560),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Preferences"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.contentViewController = hostingController
+        window.toolbarStyle = .preference
+        super.init(window: window)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    func show() {
+        showWindow(nil)
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+@MainActor
+enum SettingsWindowPresenter {
+    static var showHandler: (() -> Void)?
+
+    static func show() {
+        guard !XcodePreviewSupport.isRunning else { return }
+        if let showHandler {
+            showHandler()
+            return
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        if #available(macOS 14.0, *) {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        } else {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        }
+    }
+}
+
+@MainActor
+struct PreferencesSceneView: View {
+    @StateObject private var viewModel: PreferencesViewModel
+
+    init(preferences: AppPreferences) {
+        _viewModel = StateObject(wrappedValue: PreferencesViewModel(preferences: preferences))
+    }
+
+    var body: some View {
+        PreferencesRootView(viewModel: viewModel)
+    }
+}
+
+@MainActor
+final class PreferencesViewModel: ObservableObject {
+    @Published private(set) var permissionSnapshot: PermissionStatusSnapshot = .current()
+
+    let preferences: AppPreferences
+
+    private var observer: NSObjectProtocol?
+
+    init(preferences: AppPreferences) {
+        self.preferences = preferences
+        self.observer = NotificationCenter.default.addObserver(
+            forName: .appPreferencesDidChange,
+            object: preferences,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshPermissionStatus()
+                self?.objectWillChange.send()
+            }
+        }
+    }
+
+    deinit {
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    var captureHotkey: HotkeyManager.HotkeyDescriptor {
+        get { preferences.captureHotkey }
+        set { preferences.captureHotkey = newValue }
+    }
+
+    var saveDirectoryURL: URL {
+        preferences.saveDirectoryURL
+    }
+
+    var theme: AppPreferences.Theme {
+        get { preferences.theme }
+        set { preferences.theme = newValue }
+    }
+
+    var exportBehavior: AppPreferences.ExportBehavior {
+        get { preferences.exportBehavior }
+        set { preferences.exportBehavior = newValue }
+    }
+
+    var recordingFormat: AppPreferences.RecordingFileFormat {
+        get { preferences.recordingFileFormat }
+        set { preferences.recordingFileFormat = newValue }
+    }
+
+    var fileNamePrefix: String {
+        get { preferences.fileNamePrefix }
+        set { preferences.fileNamePrefix = newValue }
+    }
+
+    var timestampTemplate: String {
+        get { preferences.timestampTemplate }
+        set { preferences.timestampTemplate = newValue }
+    }
+
+    var launchAtLogin: Bool {
+        get { preferences.launchAtLogin }
+        set { preferences.launchAtLogin = newValue }
+    }
+
+    var revealSavedFile: Bool {
+        get { preferences.revealSavedFile }
+        set { preferences.revealSavedFile = newValue }
+    }
+
+    var playsCaptureSound: Bool {
+        get { preferences.playsCaptureSound }
+        set { preferences.playsCaptureSound = newValue }
+    }
+
+    var captureSound: AppPreferences.CaptureSound {
+        get { preferences.captureSound }
+        set { preferences.captureSound = newValue }
+    }
+
+    var screenCaptureSummary: String {
+        permissionSnapshot.screenCaptureSummary
+    }
+
+    var microphoneSummary: String {
+        permissionSnapshot.microphoneSummary
+    }
+
+    var screenCaptureColor: Color {
+        permissionSnapshot.screenCaptureGranted ? .green : .red
+    }
+
+    var microphoneColor: Color {
+        switch permissionSnapshot.microphoneStatus {
+        case .authorized:
+            return .green
+        case .notDetermined:
+            return .secondary
+        case .denied, .restricted:
+            return .red
+        @unknown default:
+            return .secondary
+        }
+    }
+
+    func updateSaveDirectory(_ url: URL) {
+        preferences.saveDirectoryURL = url
+        objectWillChange.send()
+    }
+
+    func revealFolder() {
+        NSWorkspace.shared.open(preferences.saveDirectoryURL)
+    }
+
+    func refreshPermissionStatus() {
+        permissionSnapshot = .current()
+    }
+
+    func resetToDefaults() {
+        preferences.resetToDefaults()
+        refreshPermissionStatus()
+        objectWillChange.send()
+    }
+
+    func openScreenRecordingSettings() {
+        openPrivacyPane(anchor: "Privacy_ScreenCapture")
+    }
+
+    func openMicrophoneSettings() {
+        openPrivacyPane(anchor: "Privacy_Microphone")
+    }
+
+    private func openPrivacyPane(anchor: String) {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+}
+
+struct PreferencesRootView: View {
+    @ObservedObject var viewModel: PreferencesViewModel
+    @State private var isChoosingSaveDirectory = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                GroupBox("Capture") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        LabeledContent("Shortcut") {
+                            shortcutRecorderControl
+                        }
+
+                        LabeledContent("Save Folder") {
+                            HStack(spacing: 10) {
+                                Text(viewModel.saveDirectoryURL.path)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .textSelection(.enabled)
+                                    .frame(minWidth: 320, alignment: .leading)
+                                Button("Choose…") {
+                                    isChoosingSaveDirectory = true
+                                }
+                                Button("Reveal") {
+                                    viewModel.revealFolder()
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                GroupBox("Appearance") {
+                    LabeledContent("Theme") {
+                        Picker("Theme", selection: Binding(
+                            get: { viewModel.theme },
+                            set: { viewModel.theme = $0 }
+                        )) {
+                            ForEach(AppPreferences.Theme.allCases, id: \.self) { theme in
+                                Text(theme.title).tag(theme)
+                            }
+                        }
+                        .frame(width: 180)
+                        .labelsHidden()
+                    }
+                }
+
+                GroupBox("Export") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        LabeledContent("Behavior") {
+                            Picker("Behavior", selection: Binding(
+                                get: { viewModel.exportBehavior },
+                                set: { viewModel.exportBehavior = $0 }
+                            )) {
+                                ForEach(AppPreferences.ExportBehavior.allCases, id: \.self) { behavior in
+                                    Text(behavior.title).tag(behavior)
+                                }
+                            }
+                            .frame(width: 180)
+                            .labelsHidden()
+                        }
+
+                        LabeledContent("Recording Format") {
+                            Picker("Recording Format", selection: Binding(
+                                get: { viewModel.recordingFormat },
+                                set: { viewModel.recordingFormat = $0 }
+                            )) {
+                                ForEach(AppPreferences.RecordingFileFormat.allCases, id: \.self) { format in
+                                    Text(format.title).tag(format)
+                                }
+                            }
+                            .frame(width: 120)
+                            .labelsHidden()
+                        }
+
+                        LabeledContent("File Prefix") {
+                            TextField(
+                                "screenshot",
+                                text: Binding(
+                                    get: { viewModel.fileNamePrefix },
+                                    set: { viewModel.fileNamePrefix = $0 }
+                                )
+                            )
+                            .frame(width: 280)
+                        }
+
+                        LabeledContent("Timestamp Template") {
+                            TextField(
+                                "yyyy-MM-dd_HH-mm-ss",
+                                text: Binding(
+                                    get: { viewModel.timestampTemplate },
+                                    set: { viewModel.timestampTemplate = $0 }
+                                )
+                            )
+                            .frame(width: 280)
+                        }
+
+                        Toggle("Reveal saved file in Finder after export", isOn: Binding(
+                            get: { viewModel.revealSavedFile },
+                            set: { viewModel.revealSavedFile = $0 }
+                        ))
+
+                        HStack(spacing: 10) {
+                            Toggle("Play shutter sound after capture", isOn: Binding(
+                                get: { viewModel.playsCaptureSound },
+                                set: { viewModel.playsCaptureSound = $0 }
+                            ))
+                            Picker("Capture Sound", selection: Binding(
+                                get: { viewModel.captureSound },
+                                set: { viewModel.captureSound = $0 }
+                            )) {
+                                ForEach(AppPreferences.CaptureSound.allCases, id: \.self) { sound in
+                                    Text(sound.title).tag(sound)
+                                }
+                            }
+                            .frame(width: 180)
+                            .disabled(!viewModel.playsCaptureSound)
+                            .labelsHidden()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                GroupBox("Startup") {
+                    Toggle("Launch at login", isOn: Binding(
+                        get: { viewModel.launchAtLogin },
+                        set: { viewModel.launchAtLogin = $0 }
+                    ))
+                }
+
+                GroupBox("Permissions") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        permissionRow(
+                            title: "Screen Recording",
+                            value: viewModel.screenCaptureSummary,
+                            color: viewModel.screenCaptureColor,
+                            actionTitle: "Open Settings",
+                            action: viewModel.openScreenRecordingSettings
+                        )
+
+                        permissionRow(
+                            title: "Microphone",
+                            value: viewModel.microphoneSummary,
+                            color: viewModel.microphoneColor,
+                            actionTitle: "Open Settings",
+                            action: viewModel.openMicrophoneSettings
+                        )
+
+                        HStack(spacing: 10) {
+                            Button("Refresh") {
+                                viewModel.refreshPermissionStatus()
+                            }
+                            Text("Refresh checks the current macOS permission state.")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                HStack {
+                    Text("Use Unicode date patterns like `yyyy-MM-dd_HH-mm-ss`. Export mode controls whether Done copies, saves, or does both.")
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 12)
+                    Button("Reset to Defaults") {
+                        viewModel.resetToDefaults()
+                    }
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minWidth: 700, minHeight: 560)
+        .onAppear {
+            viewModel.refreshPermissionStatus()
+        }
+        .fileImporter(
+            isPresented: $isChoosingSaveDirectory,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case let .success(urls) = result, let url = urls.first else {
+                return
+            }
+            viewModel.updateSaveDirectory(url)
+        }
+    }
+
+    private func permissionRow(
+        title: String,
+        value: String,
+        color: Color,
+        actionTitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack {
+            Text(title)
+                .frame(width: 140, alignment: .leading)
+            Text(value)
+                .foregroundStyle(color)
+                .frame(width: 140, alignment: .leading)
+            Button(actionTitle, action: action)
+        }
+    }
+
+    @ViewBuilder
+    private var shortcutRecorderControl: some View {
+        if XcodePreviewSupport.isRunning {
+            Text("Shift + 1")
+                .font(.system(.body, design: .monospaced))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .frame(width: 220, alignment: .leading)
+                .background(Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else {
+            ShortcutRecorderRepresentable(
+                descriptor: Binding(
+                    get: { viewModel.captureHotkey },
+                    set: { viewModel.captureHotkey = $0 }
+                )
+            )
+            .frame(width: 220)
+        }
+    }
+}
+
+#if DEBUG
+struct PreferencesSceneView_Previews: PreviewProvider {
+    static var previews: some View {
+        PreferencesSceneView(preferences: AppPreferences(defaults: UserDefaults(suiteName: "PreferencesPreview")!))
+    }
+}
+#endif
+
+private struct ShortcutRecorderRepresentable: NSViewRepresentable {
+    @Binding var descriptor: HotkeyManager.HotkeyDescriptor
+
+    func makeNSView(context: Context) -> ShortcutRecorderButton {
+        let button = ShortcutRecorderButton()
+        button.descriptor = descriptor
+        button.onChange = { newDescriptor in
+            descriptor = newDescriptor
+        }
+        return button
+    }
+
+    func updateNSView(_ nsView: ShortcutRecorderButton, context: Context) {
+        if nsView.descriptor.keyCode != descriptor.keyCode || nsView.descriptor.modifiers != descriptor.modifiers {
+            nsView.descriptor = descriptor
+        }
+        nsView.onChange = { newDescriptor in
+            descriptor = newDescriptor
+        }
+    }
+}
+
+private final class ShortcutRecorderButton: NSButton {
+    var descriptor = HotkeyManager.defaultCaptureHotkey {
+        didSet { updateTitle() }
+    }
+    var onChange: ((HotkeyManager.HotkeyDescriptor) -> Void)?
+
+    private var isRecording = false {
+        didSet { updateTitle() }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        bezelStyle = .rounded
+        setButtonType(.momentaryPushIn)
+        target = self
+        action = #selector(beginRecording)
+        focusRingType = .default
+        updateTitle()
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func resignFirstResponder() -> Bool {
+        isRecording = false
+        return super.resignFirstResponder()
+    }
+
+    @objc
+    private func beginRecording() {
+        window?.makeFirstResponder(self)
+        isRecording = true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        guard isRecording else {
+            super.keyDown(with: event)
+            return
+        }
+
+        if event.keyCode == 53 {
+            isRecording = false
+            window?.makeFirstResponder(nil)
+            return
+        }
+
+        let modifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let modifiers = Self.carbonModifiers(from: modifierFlags)
+        guard modifiers != 0 else {
+            NSSound.beep()
+            return
+        }
+
+        let descriptor = HotkeyManager.HotkeyDescriptor(
+            id: HotkeyManager.defaultCaptureHotkey.id,
+            keyCode: UInt32(event.keyCode),
+            modifiers: modifiers
+        )
+        self.descriptor = descriptor
+        onChange?(descriptor)
+        isRecording = false
+        window?.makeFirstResponder(nil)
+    }
+
+    private func updateTitle() {
+        title = isRecording ? "Press shortcut…" : HotkeyFormatter.string(for: descriptor)
+    }
+
+    private static func carbonModifiers(from flags: NSEvent.ModifierFlags) -> UInt32 {
+        var modifiers: UInt32 = 0
+        if flags.contains(.command) { modifiers |= UInt32(cmdKey) }
+        if flags.contains(.shift) { modifiers |= UInt32(shiftKey) }
+        if flags.contains(.option) { modifiers |= UInt32(optionKey) }
+        if flags.contains(.control) { modifiers |= UInt32(controlKey) }
+        return modifiers
+    }
+}
+
+private enum HotkeyFormatter {
+    static func string(for descriptor: HotkeyManager.HotkeyDescriptor) -> String {
+        modifierSymbols(for: descriptor.modifiers) + keyName(for: descriptor.keyCode)
+    }
+
+    private static func modifierSymbols(for modifiers: UInt32) -> String {
+        var symbols = ""
+        if modifiers & UInt32(controlKey) != 0 { symbols += "⌃" }
+        if modifiers & UInt32(optionKey) != 0 { symbols += "⌥" }
+        if modifiers & UInt32(shiftKey) != 0 { symbols += "⇧" }
+        if modifiers & UInt32(cmdKey) != 0 { symbols += "⌘" }
+        return symbols
+    }
+
+    private static func keyName(for keyCode: UInt32) -> String {
+        if let specialKeyName = specialKeyName(for: keyCode) {
+            return specialKeyName
+        }
+        if let translatedKeyName = translatedKeyName(for: keyCode) {
+            return translatedKeyName
+        }
+        return "Key \(keyCode)"
+    }
+
+    private static func translatedKeyName(for keyCode: UInt32) -> String? {
+        guard let inputSource = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let layoutData = TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData) else {
+            return nil
+        }
+
+        let data = unsafeBitCast(layoutData, to: CFData.self) as Data
+        return data.withUnsafeBytes { rawBuffer in
+            guard let keyboardLayout = rawBuffer.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else {
+                return nil
+            }
+
+            var deadKeyState: UInt32 = 0
+            var actualLength = 0
+            var unicodeScalars = [UniChar](repeating: 0, count: 4)
+
+            let status = UCKeyTranslate(
+                keyboardLayout,
+                UInt16(keyCode),
+                UInt16(kUCKeyActionDisplay),
+                0,
+                UInt32(LMGetKbdType()),
+                OptionBits(kUCKeyTranslateNoDeadKeysBit),
+                &deadKeyState,
+                unicodeScalars.count,
+                &actualLength,
+                &unicodeScalars
+            )
+
+            guard status == noErr, actualLength > 0 else {
+                return nil
+            }
+
+            return String(utf16CodeUnits: unicodeScalars, count: actualLength)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased()
+        }
+    }
+
+    private static func specialKeyName(for keyCode: UInt32) -> String? {
+        switch keyCode {
+        case 36:
+            return "↩"
+        case 48:
+            return "⇥"
+        case 49:
+            return "Space"
+        case 51:
+            return "⌫"
+        case 53:
+            return "⎋"
+        case 123:
+            return "←"
+        case 124:
+            return "→"
+        case 125:
+            return "↓"
+        case 126:
+            return "↑"
+        default:
+            return nil
+        }
+    }
+}

@@ -942,102 +942,6 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(descriptor.modifiers, UInt32(cmdKey | shiftKey))
     }
 
-    func testDevelopmentEnvironmentDiagnosticsFlagsDerivedDataAndAdHocSigningAsUnstable() {
-        let diagnostics = DevelopmentEnvironmentDiagnostics(
-            bundlePath: "/Users/test/Library/Developer/Xcode/DerivedData/scrshot/Build/Products/Debug/scrshot.app",
-            bundleIdentifier: "io.github.Warrfie.scrshot",
-            teamIdentifier: "not set"
-        )
-
-        XCTAssertTrue(diagnostics.isRunningFromDerivedData)
-        XCTAssertTrue(diagnostics.isAdHocSigned)
-        XCTAssertTrue(diagnostics.likelyCausesTCCPermissionMismatch)
-    }
-
-    func testDevelopmentEnvironmentDiagnosticsTreatsStableSignedAppAsSafe() {
-        let diagnostics = DevelopmentEnvironmentDiagnostics(
-            bundlePath: "/Users/test/Applications/scrshot-dev.app",
-            bundleIdentifier: "io.github.Warrfie.scrshot",
-            teamIdentifier: "7G4FAJX848"
-        )
-
-        XCTAssertFalse(diagnostics.isRunningFromDerivedData)
-        XCTAssertFalse(diagnostics.isAdHocSigned)
-        XCTAssertFalse(diagnostics.likelyCausesTCCPermissionMismatch)
-    }
-
-    func testDevelopmentAppRelaunchCoordinatorRequestsRelaunchForUnstableXcodeRun() {
-        let diagnostics = DevelopmentEnvironmentDiagnostics(
-            bundlePath: "/Users/test/Library/Developer/Xcode/DerivedData/scrshot/Build/Products/Debug/scrshot.app",
-            bundleIdentifier: "io.github.Warrfie.scrshot",
-            teamIdentifier: "nil"
-        )
-        let coordinator = DevelopmentAppRelaunchCoordinator(environment: [:], fileManager: .default)
-
-        XCTAssertTrue(coordinator.shouldRelaunch(diagnostics: diagnostics))
-    }
-
-    func testDevelopmentAppRelaunchCoordinatorSkipsRelaunchForTestsAndStableApps() {
-        let stableDiagnostics = DevelopmentEnvironmentDiagnostics(
-            bundlePath: "/Users/test/Applications/scrshot-dev.app",
-            bundleIdentifier: "io.github.Warrfie.scrshot",
-            teamIdentifier: "7G4FAJX848"
-        )
-        let unstableDiagnostics = DevelopmentEnvironmentDiagnostics(
-            bundlePath: "/Users/test/Library/Developer/Xcode/DerivedData/scrshot/Build/Products/Debug/scrshot.app",
-            bundleIdentifier: "io.github.Warrfie.scrshot",
-            teamIdentifier: "nil"
-        )
-
-        let testCoordinator = DevelopmentAppRelaunchCoordinator(
-            environment: ["XCTestConfigurationFilePath": "/tmp/test.xctestconfiguration"],
-            fileManager: .default
-        )
-        let relaunchedCoordinator = DevelopmentAppRelaunchCoordinator(
-            environment: [DevelopmentAppRelaunchCoordinator.relaunchedEnvironmentKey: "1"],
-            fileManager: .default
-        )
-
-        XCTAssertFalse(testCoordinator.shouldRelaunch(diagnostics: unstableDiagnostics))
-        XCTAssertFalse(relaunchedCoordinator.shouldRelaunch(diagnostics: unstableDiagnostics))
-        XCTAssertFalse(testCoordinator.shouldRelaunch(diagnostics: stableDiagnostics))
-    }
-
-    func testDevelopmentAppRelaunchCoordinatorResolvesExecutableFromBundleInfo() throws {
-        let rootURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("scrshot-dev-app-\(UUID().uuidString)", isDirectory: true)
-        let appURL = rootURL.appendingPathComponent("scrshot-dev.app", isDirectory: true)
-        let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
-        let macOSURL = contentsURL.appendingPathComponent("MacOS", isDirectory: true)
-        try FileManager.default.createDirectory(at: macOSURL, withIntermediateDirectories: true)
-
-        let infoPlist: [String: Any] = [
-            "CFBundleExecutable": "scrshot",
-            "CFBundleIdentifier": "io.github.Warrfie.scrshot",
-            "CFBundlePackageType": "APPL"
-        ]
-        let plistData = try PropertyListSerialization.data(fromPropertyList: infoPlist, format: .xml, options: 0)
-        try plistData.write(to: contentsURL.appendingPathComponent("Info.plist"))
-
-        let coordinator = DevelopmentAppRelaunchCoordinator(environment: [:], fileManager: .default)
-        let executableURL = try coordinator.executableURL(forAppAt: appURL)
-
-        XCTAssertEqual(executableURL.path, macOSURL.appendingPathComponent("scrshot").path)
-    }
-
-    func testDevelopmentAppRelaunchCoordinatorBuildsLaunchServicesArgumentsForStableApp() {
-        let appURL = URL(fileURLWithPath: "/Users/example/Applications/scrshot-dev.app", isDirectory: true)
-        let arguments = DevelopmentAppRelaunchCoordinator.launchArguments(
-            forAppAt: appURL,
-            environment: [DevelopmentAppRelaunchCoordinator.relaunchedEnvironmentKey: "1"]
-        )
-
-        XCTAssertEqual(
-            arguments,
-            ["-na", appURL.path, "--env", "\(DevelopmentAppRelaunchCoordinator.relaunchedEnvironmentKey)=1"]
-        )
-    }
-
     func testAppInstanceCoordinatorDetectsAnotherRunningInstance() {
         let coordinator = AppInstanceCoordinator(
             bundleIdentifier: "io.github.Warrfie.scrshot",
@@ -1051,6 +955,22 @@ final class HotkeyManagerTests: XCTestCase {
         )
 
         XCTAssertEqual(coordinator.existingInstanceProcessIdentifier(), 222)
+    }
+
+    func testAppInstanceCoordinatorCollectsAllOtherRunningInstances() {
+        let coordinator = AppInstanceCoordinator(
+            bundleIdentifier: "io.github.Warrfie.scrshot",
+            currentProcessIdentifier: 100,
+            runningApplicationsProvider: { _ in
+                [
+                    .init(processIdentifier: 100),
+                    .init(processIdentifier: 222),
+                    .init(processIdentifier: 333)
+                ]
+            }
+        )
+
+        XCTAssertEqual(coordinator.existingInstanceProcessIdentifiers(), [222, 333])
     }
 
     func testAppInstanceCoordinatorIgnoresCurrentProcessWhenSingleInstance() {

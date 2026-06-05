@@ -26,7 +26,7 @@ jobs:
         run: >
           xcodebuild test
           -project scrshot.xcodeproj
-          -scheme scrshot-ci
+          -scheme scrshot
           -derivedDataPath $RUNNER_TEMP/scrshot-derived-data
           CODE_SIGNING_ALLOWED=NO
           CODE_SIGNING_REQUIRED=NO

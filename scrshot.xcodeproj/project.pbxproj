@@ -24,6 +24,19 @@
 		A10000010000000000000017 /* LaunchAtLoginController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000019 /* LaunchAtLoginController.swift */; };
 		A10000010000000000000018 /* ScreenRecordingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000020 /* ScreenRecordingService.swift */; };
 		A10000010000000000000019 /* AppRuntimeSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000021 /* AppRuntimeSupport.swift */; };
+		A10000010000000000000020 /* ScreenshotEditorShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000022 /* ScreenshotEditorShellView.swift */; };
+		A10000010000000000000021 /* ScreenshotEditorTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000023 /* ScreenshotEditorTypes.swift */; };
+		A10000010000000000000022 /* ScreenshotEditorAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000024 /* ScreenshotEditorAnnotation.swift */; };
+		A10000010000000000000023 /* ScreenshotEditorDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000025 /* ScreenshotEditorDocument.swift */; };
+		A10000010000000000000024 /* InlineTextEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000026 /* InlineTextEditorView.swift */; };
+		A10000010000000000000025 /* ScreenshotEditorGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000027 /* ScreenshotEditorGeometry.swift */; };
+		A10000010000000000000026 /* ScreenshotEditorShellViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000028 /* ScreenshotEditorShellViewModel.swift */; };
+		A10000010000000000000027 /* ScreenshotEditorShellPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000029 /* ScreenshotEditorShellPreview.swift */; };
+		A10000010000000000000028 /* ScreenshotEditorToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000030 /* ScreenshotEditorToolbarView.swift */; };
+		A10000010000000000000029 /* ScreenshotEditorHostingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000031 /* ScreenshotEditorHostingSupport.swift */; };
+		A10000010000000000000030 /* NSScreen+DisplayID.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000032 /* NSScreen+DisplayID.swift */; };
+		A10000010000000000000031 /* ScreenshotEditorScreenPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000033 /* ScreenshotEditorScreenPlacement.swift */; };
+		A10000010000000000000032 /* AppLaunchSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000034 /* AppLaunchSupport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +69,21 @@
 		A10000110000000000000019 /* LaunchAtLoginController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginController.swift; sourceTree = "<group>"; };
 		A10000110000000000000020 /* ScreenRecordingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecordingService.swift; sourceTree = "<group>"; };
 		A10000110000000000000021 /* AppRuntimeSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRuntimeSupport.swift; sourceTree = "<group>"; };
+		A10000110000000000000022 /* ScreenshotEditorShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorShellView.swift; sourceTree = "<group>"; };
+		A10000110000000000000023 /* ScreenshotEditorTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorTypes.swift; sourceTree = "<group>"; };
+		A10000110000000000000024 /* ScreenshotEditorAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorAnnotation.swift; sourceTree = "<group>"; };
+		A10000110000000000000025 /* ScreenshotEditorDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorDocument.swift; sourceTree = "<group>"; };
+		A10000110000000000000026 /* InlineTextEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineTextEditorView.swift; sourceTree = "<group>"; };
+		A10000110000000000000027 /* ScreenshotEditorGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorGeometry.swift; sourceTree = "<group>"; };
+		A10000110000000000000028 /* ScreenshotEditorShellViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorShellViewModel.swift; sourceTree = "<group>"; };
+		A10000110000000000000029 /* ScreenshotEditorShellPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorShellPreview.swift; sourceTree = "<group>"; };
+		A10000110000000000000030 /* ScreenshotEditorToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorToolbarView.swift; sourceTree = "<group>"; };
+		A10000110000000000000031 /* ScreenshotEditorHostingSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorHostingSupport.swift; sourceTree = "<group>"; };
+		A10000110000000000000032 /* NSScreen+DisplayID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSScreen+DisplayID.swift"; sourceTree = "<group>"; };
+		A10000110000000000000033 /* ScreenshotEditorScreenPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotEditorScreenPlacement.swift; sourceTree = "<group>"; };
+		A10000110000000000000034 /* AppLaunchSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchSupport.swift; sourceTree = "<group>"; };
+		A10000110000000000000035 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		A10000110000000000000036 /* Signing.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig.example; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,37 +105,109 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		9B6FEAC02FCACEAA007B8ED4 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				A10000110000000000000014 /* XCTest.framework */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		A10000200000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				A1000020000000000000000A /* Config */,
 				A10000200000000000000002 /* Sources */,
 				A10000200000000000000004 /* Tests */,
 				A10000200000000000000003 /* Products */,
+				9B6FEAC02FCACEAA007B8ED4 /* Recovered References */,
 			);
+			sourceTree = "<group>";
+		};
+		A1000020000000000000000A /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				A10000110000000000000035 /* Signing.xcconfig */,
+				A10000110000000000000036 /* Signing.xcconfig.example */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		A10000200000000000000002 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				A10000110000000000000001 /* App.swift */,
-				A10000110000000000000002 /* HotkeyManager.swift */,
-				A10000110000000000000003 /* ScreenCaptureService.swift */,
-				A10000110000000000000006 /* ClipboardManager.swift */,
-				A10000110000000000000007 /* ImageSaver.swift */,
-				A10000110000000000000009 /* ScreenshotEditorCanvasView.swift */,
-				A10000110000000000000010 /* ScreenshotEditorWindowController.swift */,
-				A10000110000000000000011 /* AppLogger.swift */,
-				A10000110000000000000015 /* AppPreferences.swift */,
-				A10000110000000000000016 /* StatusItemController.swift */,
-				A10000110000000000000017 /* PreferencesWindowController.swift */,
-				A10000110000000000000019 /* LaunchAtLoginController.swift */,
-				A10000110000000000000020 /* ScreenRecordingService.swift */,
-				A10000110000000000000021 /* AppRuntimeSupport.swift */,
+				A10000200000000000000005 /* App */,
+				A10000200000000000000006 /* Capture */,
+				A10000200000000000000007 /* Editor */,
+				A10000200000000000000008 /* Preferences */,
+				A10000200000000000000009 /* Support */,
 				A10000110000000000000018 /* Assets.xcassets */,
 			);
 			name = Sources;
 			path = Sources/scrshot;
 			sourceTree = SOURCE_ROOT;
+		};
+		A10000200000000000000005 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A10000110000000000000034 /* AppLaunchSupport.swift */,
+				A10000110000000000000001 /* App.swift */,
+				A10000110000000000000019 /* LaunchAtLoginController.swift */,
+				A10000110000000000000016 /* StatusItemController.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A10000200000000000000006 /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				A10000110000000000000003 /* ScreenCaptureService.swift */,
+				A10000110000000000000020 /* ScreenRecordingService.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
+		A10000200000000000000007 /* Editor */ = {
+			isa = PBXGroup;
+			children = (
+				A10000110000000000000026 /* InlineTextEditorView.swift */,
+				A10000110000000000000024 /* ScreenshotEditorAnnotation.swift */,
+				A10000110000000000000009 /* ScreenshotEditorCanvasView.swift */,
+				A10000110000000000000025 /* ScreenshotEditorDocument.swift */,
+				A10000110000000000000027 /* ScreenshotEditorGeometry.swift */,
+				A10000110000000000000031 /* ScreenshotEditorHostingSupport.swift */,
+				A10000110000000000000033 /* ScreenshotEditorScreenPlacement.swift */,
+				A10000110000000000000023 /* ScreenshotEditorTypes.swift */,
+				A10000110000000000000010 /* ScreenshotEditorWindowController.swift */,
+				A10000110000000000000022 /* ScreenshotEditorShellView.swift */,
+				A10000110000000000000028 /* ScreenshotEditorShellViewModel.swift */,
+				A10000110000000000000029 /* ScreenshotEditorShellPreview.swift */,
+				A10000110000000000000030 /* ScreenshotEditorToolbarView.swift */,
+			);
+			path = Editor;
+			sourceTree = "<group>";
+		};
+		A10000200000000000000008 /* Preferences */ = {
+			isa = PBXGroup;
+			children = (
+				A10000110000000000000015 /* AppPreferences.swift */,
+				A10000110000000000000017 /* PreferencesWindowController.swift */,
+			);
+			path = Preferences;
+			sourceTree = "<group>";
+		};
+		A10000200000000000000009 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				A10000110000000000000011 /* AppLogger.swift */,
+				A10000110000000000000021 /* AppRuntimeSupport.swift */,
+				A10000110000000000000006 /* ClipboardManager.swift */,
+				A10000110000000000000002 /* HotkeyManager.swift */,
+				A10000110000000000000007 /* ImageSaver.swift */,
+				A10000110000000000000032 /* NSScreen+DisplayID.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
 		};
 		A10000200000000000000003 /* Products */ = {
 			isa = PBXGroup;
@@ -236,6 +336,19 @@
 				A10000010000000000000017 /* LaunchAtLoginController.swift in Sources */,
 				A10000010000000000000018 /* ScreenRecordingService.swift in Sources */,
 				A10000010000000000000019 /* AppRuntimeSupport.swift in Sources */,
+				A10000010000000000000020 /* ScreenshotEditorShellView.swift in Sources */,
+				A10000010000000000000021 /* ScreenshotEditorTypes.swift in Sources */,
+				A10000010000000000000022 /* ScreenshotEditorAnnotation.swift in Sources */,
+				A10000010000000000000023 /* ScreenshotEditorDocument.swift in Sources */,
+				A10000010000000000000024 /* InlineTextEditorView.swift in Sources */,
+				A10000010000000000000025 /* ScreenshotEditorGeometry.swift in Sources */,
+				A10000010000000000000026 /* ScreenshotEditorShellViewModel.swift in Sources */,
+				A10000010000000000000027 /* ScreenshotEditorShellPreview.swift in Sources */,
+				A10000010000000000000028 /* ScreenshotEditorToolbarView.swift in Sources */,
+				A10000010000000000000029 /* ScreenshotEditorHostingSupport.swift in Sources */,
+				A10000010000000000000030 /* NSScreen+DisplayID.swift in Sources */,
+				A10000010000000000000031 /* ScreenshotEditorScreenPlacement.swift in Sources */,
+				A10000010000000000000032 /* AppLaunchSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,6 +413,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
 			};
 			name = Debug;
@@ -351,12 +466,15 @@
 		};
 		A10000600000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000110000000000000035 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = scrshot;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -370,15 +488,19 @@
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.Warrfie.scrshot;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
 			};
 			name = Debug;
 		};
 		A10000600000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000110000000000000035 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -403,8 +525,10 @@
 		};
 		A10000600000000000000005 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000110000000000000035 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -416,6 +540,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.Warrfie.scrshotTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/scrshot.app/Contents/MacOS/scrshot";
 				TEST_TARGET_NAME = scrshot;
@@ -424,8 +550,10 @@
 		};
 		A10000600000000000000006 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000110000000000000035 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (

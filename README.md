@@ -134,7 +134,7 @@ For GitHub-hosted preview builds:
 2. Download the `scrshot-dmg-<commit>` artifact
 3. Open the `.dmg` and drag `scrshot.app` to `Applications`
 
-Current artifact builds are CI-packaged and intended for testing. They are not notarized yet.
+Tagged release artifacts are signed, notarized, stapled, and Gatekeeper-checked by GitHub Actions when the required Apple secrets are configured. See `docs/GITHUB_SIGNING.md`.
 
 ## Default Behavior
 
