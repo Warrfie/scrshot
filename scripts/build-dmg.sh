@@ -23,6 +23,7 @@ APP_PATH="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/$APP_NAME"
 STAGING_DIR="$OUTPUT_DIR/dmg-root"
 DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME.dmg"
 SHA_PATH="$OUTPUT_DIR/$DMG_BASENAME.sha256"
+NOTARY_RESULT_PATH="$OUTPUT_DIR/$DMG_BASENAME.notary.json"
 NOTARY_KEY_PATH=""
 
 cleanup() {
@@ -57,6 +58,7 @@ if [[ "$SIGNING_ALLOWED" == "YES" ]]; then
   : "${CODE_SIGN_IDENTITY_VALUE:?Set CODE_SIGN_IDENTITY_VALUE for signed builds}"
   : "${DEVELOPMENT_TEAM_VALUE:?Set DEVELOPMENT_TEAM_VALUE for signed builds}"
   SIGNING_ARGS+=(
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
     CODE_SIGNING_REQUIRED=YES
     CODE_SIGN_STYLE=Manual
     CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_VALUE"
@@ -96,7 +98,7 @@ mkdir -p "$OUTPUT_DIR"
 ditto "$APP_PATH" "$STAGING_DIR/$APP_NAME"
 ln -s /Applications "$STAGING_DIR/Applications"
 
-rm -f "$DMG_PATH" "$SHA_PATH"
+rm -f "$DMG_PATH" "$SHA_PATH" "$NOTARY_RESULT_PATH"
 hdiutil create \
   -volname "$VOLUME_NAME" \
   -srcfolder "$STAGING_DIR" \
@@ -125,7 +127,23 @@ if [[ "$NOTARIZATION_ALLOWED" == "YES" ]]; then
     --key "$NOTARY_KEY_PATH" \
     --key-id "$ASC_API_KEY_ID" \
     --issuer "$ASC_API_ISSUER_ID" \
-    --wait
+    --wait \
+    --output-format json \
+    | tee "$NOTARY_RESULT_PATH"
+
+  NOTARY_STATUS="$(/usr/bin/plutil -extract status raw -o - "$NOTARY_RESULT_PATH")"
+  NOTARY_ID="$(/usr/bin/plutil -extract id raw -o - "$NOTARY_RESULT_PATH")"
+
+  if [[ "$NOTARY_STATUS" != "Accepted" ]]; then
+    echo "Notarization failed with status: $NOTARY_STATUS" >&2
+    if [[ -n "$NOTARY_ID" ]]; then
+      xcrun notarytool log "$NOTARY_ID" \
+        --key "$NOTARY_KEY_PATH" \
+        --key-id "$ASC_API_KEY_ID" \
+        --issuer "$ASC_API_ISSUER_ID" || true
+    fi
+    exit 1
+  fi
 
   xcrun stapler staple "$DMG_PATH"
   xcrun stapler validate "$DMG_PATH"
