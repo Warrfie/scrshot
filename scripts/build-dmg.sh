@@ -66,7 +66,11 @@ if [[ "$SIGNING_ALLOWED" == "YES" ]]; then
   )
   if [[ -n "$KEYCHAIN_PATH" ]]; then
     SIGNING_ARGS+=(
-      OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH"
+      OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH --timestamp"
+    )
+  else
+    SIGNING_ARGS+=(
+      OTHER_CODE_SIGN_FLAGS="--timestamp"
     )
   fi
 else
@@ -107,7 +111,15 @@ hdiutil create \
   "$DMG_PATH"
 
 if [[ "$SIGNING_ALLOWED" == "YES" && -n "$DMG_CODE_SIGN_IDENTITY" ]]; then
-  codesign --force --sign "$DMG_CODE_SIGN_IDENTITY" "$DMG_PATH"
+  DMG_CODESIGN_ARGS=(
+    --force
+    --timestamp
+    --sign "$DMG_CODE_SIGN_IDENTITY"
+  )
+  if [[ -n "$KEYCHAIN_PATH" ]]; then
+    DMG_CODESIGN_ARGS+=(--keychain "$KEYCHAIN_PATH")
+  fi
+  codesign "${DMG_CODESIGN_ARGS[@]}" "$DMG_PATH"
 fi
 
 if [[ "$NOTARIZATION_ALLOWED" == "YES" ]]; then
