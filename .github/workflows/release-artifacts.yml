@@ -34,6 +34,7 @@ jobs:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          CODE_SIGN_IDENTITY_VALUE: ${{ secrets.MACOS_CODE_SIGN_IDENTITY }}
         run: ./scripts/install-ci-macos-certificate.sh
 
       - name: Build DMG
