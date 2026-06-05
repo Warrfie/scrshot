@@ -17,6 +17,7 @@ DMG_CODE_SIGN_IDENTITY="${DMG_CODE_SIGN_IDENTITY:-$CODE_SIGN_IDENTITY_VALUE}"
 ASC_API_KEY_ID="${ASC_API_KEY_ID:-}"
 ASC_API_ISSUER_ID="${ASC_API_ISSUER_ID:-}"
 ASC_API_KEY_P8_BASE64="${ASC_API_KEY_P8_BASE64:-}"
+KEYCHAIN_PATH="${KEYCHAIN_PATH:-}"
 
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/$APP_NAME"
 STAGING_DIR="$OUTPUT_DIR/dmg-root"
@@ -37,12 +38,30 @@ SIGNING_ARGS=(
 )
 
 if [[ "$SIGNING_ALLOWED" == "YES" ]]; then
+  if [[ -z "$CODE_SIGN_IDENTITY_VALUE" || "$CODE_SIGN_IDENTITY_VALUE" == "AUTO" ]]; then
+    if [[ -z "$KEYCHAIN_PATH" ]]; then
+      echo "KEYCHAIN_PATH is required when CODE_SIGN_IDENTITY_VALUE is AUTO" >&2
+      exit 1
+    fi
+    CODE_SIGN_IDENTITY_VALUE="$(
+      security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+        | sed -n 's/.*"\(Developer ID Application: .*\)".*/\1/p' \
+        | head -n 1
+    )"
+  fi
+  : "${CODE_SIGN_IDENTITY_VALUE:?Set CODE_SIGN_IDENTITY_VALUE for signed builds}"
+  : "${DEVELOPMENT_TEAM_VALUE:?Set DEVELOPMENT_TEAM_VALUE for signed builds}"
   SIGNING_ARGS+=(
     CODE_SIGNING_REQUIRED=YES
     CODE_SIGN_STYLE=Manual
     CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_VALUE"
     DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_VALUE"
   )
+  if [[ -n "$KEYCHAIN_PATH" ]]; then
+    SIGNING_ARGS+=(
+      OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH"
+    )
+  fi
 else
   SIGNING_ARGS+=(
     CODE_SIGNING_REQUIRED=NO

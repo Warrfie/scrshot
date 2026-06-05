@@ -34,7 +34,7 @@ jobs:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          CODE_SIGN_IDENTITY_VALUE: ${{ secrets.MACOS_CODE_SIGN_IDENTITY }}
+          KEYCHAIN_PATH: ${{ runner.temp }}/scrshot-signing.keychain-db
         run: ./scripts/install-ci-macos-certificate.sh
 
       - name: Build DMG
@@ -42,10 +42,11 @@ jobs:
           DMG_BASENAME: scrshot-${{ github.ref_name }}
           OUTPUT_DIR: ${{ github.workspace }}/build/artifacts
           DERIVED_DATA_PATH: ${{ runner.temp }}/scrshot-release-derived-data
+          KEYCHAIN_PATH: ${{ runner.temp }}/scrshot-signing.keychain-db
           SIGNING_ALLOWED: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed) && 'YES' || 'NO' }}
           NOTARIZATION_ALLOWED: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed) && 'YES' || 'NO' }}
           DEVELOPMENT_TEAM_VALUE: ${{ secrets.APPLE_TEAM_ID }}
-          CODE_SIGN_IDENTITY_VALUE: ${{ secrets.MACOS_CODE_SIGN_IDENTITY }}
+          CODE_SIGN_IDENTITY_VALUE: AUTO
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
