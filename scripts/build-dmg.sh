@@ -38,16 +38,21 @@ SIGNING_ARGS=(
 )
 
 if [[ "$SIGNING_ALLOWED" == "YES" ]]; then
-  if [[ -z "$CODE_SIGN_IDENTITY_VALUE" || "$CODE_SIGN_IDENTITY_VALUE" == "AUTO" ]]; then
+  resolve_developer_id_identity() {
     if [[ -z "$KEYCHAIN_PATH" ]]; then
-      echo "KEYCHAIN_PATH is required when CODE_SIGN_IDENTITY_VALUE is AUTO" >&2
+      echo "KEYCHAIN_PATH is required when code signing identity is AUTO" >&2
       exit 1
     fi
-    CODE_SIGN_IDENTITY_VALUE="$(
-      security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
-        | sed -n 's/.*"\(Developer ID Application: .*\)".*/\1/p' \
-        | head -n 1
-    )"
+    security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+      | sed -n 's/.*"\(Developer ID Application: .*\)".*/\1/p' \
+      | head -n 1
+  }
+
+  if [[ -z "$CODE_SIGN_IDENTITY_VALUE" || "$CODE_SIGN_IDENTITY_VALUE" == "AUTO" ]]; then
+    CODE_SIGN_IDENTITY_VALUE="$(resolve_developer_id_identity)"
+  fi
+  if [[ -z "$DMG_CODE_SIGN_IDENTITY" || "$DMG_CODE_SIGN_IDENTITY" == "AUTO" ]]; then
+    DMG_CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_VALUE"
   fi
   : "${CODE_SIGN_IDENTITY_VALUE:?Set CODE_SIGN_IDENTITY_VALUE for signed builds}"
   : "${DEVELOPMENT_TEAM_VALUE:?Set DEVELOPMENT_TEAM_VALUE for signed builds}"
