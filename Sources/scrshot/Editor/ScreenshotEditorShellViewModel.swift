@@ -40,8 +40,8 @@ final class ScreenshotEditorShellViewModel: ObservableObject {
     @Published var rectangleColor: NSColor = .systemRed
     @Published var arrowStrokeWidth: CGFloat = 8
     @Published var rectangleMode: ScreenshotRectangleToolMode = .blur
-    @Published var rectangleStrokeEnabled = true
     @Published var detailScale: CGFloat = 2
+    @Published var detailShape: ScreenshotDetailShape = .oval
     @Published var lineStyle: ScreenshotLineStyle = .solid
     @Published var textSize: CGFloat = 28
     @Published var textAlignment: NSTextAlignment = .left
@@ -65,8 +65,8 @@ final class ScreenshotEditorShellViewModel: ObservableObject {
         rectangleColor = state.rectangleColor
         arrowStrokeWidth = state.arrowStrokeWidth
         rectangleMode = state.rectangleMode
-        rectangleStrokeEnabled = state.rectangleStrokeEnabled
         detailScale = state.detailScale
+        detailShape = state.detailShape
         lineStyle = state.lineStyle
         textSize = state.textSize
         textAlignment = state.textAlignment
@@ -98,10 +98,20 @@ final class ScreenshotEditorShellViewModel: ObservableObject {
     }
 
     func setArrowStrokeWidth(_ width: CGFloat) {
+        let allowsZero = inspectorKind == .rectangle || inspectorKind == .detail
+        let clampedWidth = min(max(width, allowsZero ? 0 : 2), 24)
         if let editorViewController {
-            editorViewController.setArrowStrokeWidth(width)
+            editorViewController.setArrowStrokeWidth(clampedWidth)
         } else {
-            arrowStrokeWidth = width
+            arrowStrokeWidth = clampedWidth
+        }
+    }
+
+    func setDetailShape(_ shape: ScreenshotDetailShape) {
+        if let editorViewController {
+            editorViewController.setDetailShape(shape)
+        } else {
+            detailShape = shape
         }
     }
 
@@ -110,22 +120,6 @@ final class ScreenshotEditorShellViewModel: ObservableObject {
             editorViewController.setRectangleMode(mode)
         } else {
             rectangleMode = mode
-        }
-    }
-
-    func setRectangleStrokeEnabled(_ enabled: Bool) {
-        if let editorViewController {
-            editorViewController.setRectangleStrokeEnabled(enabled)
-        } else {
-            rectangleStrokeEnabled = enabled
-        }
-    }
-
-    func setDetailScale(_ scale: CGFloat) {
-        if let editorViewController {
-            editorViewController.setDetailScale(scale)
-        } else {
-            detailScale = scale
         }
     }
 
@@ -189,8 +183,8 @@ struct ScreenshotEditorShellState {
     var rectangleColor: NSColor
     var arrowStrokeWidth: CGFloat
     var rectangleMode: ScreenshotRectangleToolMode
-    var rectangleStrokeEnabled: Bool
     var detailScale: CGFloat
+    var detailShape: ScreenshotDetailShape
     var lineStyle: ScreenshotLineStyle
     var textSize: CGFloat
     var textAlignment: NSTextAlignment

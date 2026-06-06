@@ -14,8 +14,8 @@ private enum ScreenshotEditorShellPreviewFactory {
                 rectangleColor: .black,
                 arrowStrokeWidth: 8,
                 rectangleMode: .outline,
-                rectangleStrokeEnabled: true,
                 detailScale: 2.4,
+                detailShape: .oval,
                 lineStyle: .dashed,
                 textSize: 28,
                 textAlignment: .center
@@ -92,7 +92,7 @@ private struct InteractiveScreenshotEditorShellPreview: View {
         case .rectangle:
             return "Mode: \(viewModel.rectangleMode.title)"
         case .detail:
-            return "Zoom \(String(format: "%.1fx", viewModel.detailScale))"
+            return "Effective detail \(String(format: "%.1fx", viewModel.detailScale))"
         case .text:
             return "Text \(Int(viewModel.textSize)) pt"
         }

@@ -6,9 +6,8 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
     var activeColor: NSColor = .systemRed
     var activeArrowStrokeWidth: CGFloat = 8
     var activeRectangleMode: ScreenshotRectangleToolMode = .blur
-    var activeRectangleStrokeEnabled = true
     var activeLineStyle: ScreenshotLineStyle = .solid
-    var activeDetailScale: CGFloat = 2
+    var activeDetailShape: ScreenshotDetailShape = .oval
     var activeTextFontSize: CGFloat = 28
     var activeTextAlignment: NSTextAlignment = .left
     var activeTextShowsBackground = true
@@ -30,6 +29,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
     private var creationDragStart: CGPoint?
     private var creationDragCurrent: CGPoint?
     private var movingLastPoint: CGPoint?
+    private var movingDetailRegion: ScreenshotDetailRegion?
     private var activeHandle: ScreenshotAnnotationHandle?
     private var handPanLastPoint: CGPoint?
     private var trackingArea: NSTrackingArea?
@@ -103,8 +103,14 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
     }
 
     func applyArrowStrokeWidth(_ strokeWidth: CGFloat) {
-        activeArrowStrokeWidth = min(max(strokeWidth, 2), 24)
-        if document.selectedAnnotation?.kind == .arrow || document.selectedAnnotation?.kind == .line || document.selectedAnnotation?.kind == .highlight {
+        let allowsZero = document.selectedAnnotation?.kind == .detail
+            || document.selectedAnnotation?.kind == .highlight
+            || (document.selectedAnnotation == nil && (tool == .rectangle || tool == .detail))
+        activeArrowStrokeWidth = min(max(strokeWidth, allowsZero ? 0 : 2), 24)
+        if document.selectedAnnotation?.kind == .arrow
+            || document.selectedAnnotation?.kind == .line
+            || document.selectedAnnotation?.kind == .highlight
+            || document.selectedAnnotation?.kind == .detail {
             document.performUndoableChange(actionName: "Change Stroke Width") {
                 document.updateSelectedStrokeWidth(activeArrowStrokeWidth)
             }
@@ -112,11 +118,11 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         }
     }
 
-    func applyRectangleStrokeEnabled(_ enabled: Bool) {
-        activeRectangleStrokeEnabled = enabled
-        if document.selectedAnnotation?.kind == .highlight {
-            document.performUndoableChange(actionName: enabled ? "Enable Rectangle Stroke" : "Disable Rectangle Stroke") {
-                document.updateSelectedStrokeWidth(enabled ? activeArrowStrokeWidth : 0)
+    func applyDetailShape(_ shape: ScreenshotDetailShape) {
+        activeDetailShape = shape
+        if document.selectedAnnotation?.kind == .detail {
+            document.performUndoableChange(actionName: "Change Detail Shape") {
+                document.updateSelectedDetailShape(shape)
             }
             notifyDocumentDidChange()
         }
@@ -168,14 +174,13 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
 
     func applyRectangleMode(_ mode: ScreenshotRectangleToolMode) {
         activeRectangleMode = mode
-        if document.selectedAnnotation?.kind == .obscure, mode == .blur {
+        if document.selectedAnnotation?.kind == .highlight || document.selectedAnnotation?.kind == .obscure {
             document.performUndoableChange(actionName: "Change Rectangle Mode") {
-                document.updateSelectedObscureStyle(.blur)
-            }
-            notifyDocumentDidChange()
-        } else if document.selectedAnnotation?.kind == .highlight {
-            document.performUndoableChange(actionName: "Change Rectangle Fill") {
-                document.updateSelectedFillOpacity(mode == .highlight ? 1 : 0)
+                document.updateSelectedRectangleMode(
+                    mode,
+                    defaultColor: activeColor,
+                    defaultStrokeWidth: activeArrowStrokeWidth
+                )
             }
             notifyDocumentDidChange()
         }
@@ -186,16 +191,6 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
         if document.selectedAnnotation?.kind == .line {
             document.performUndoableChange(actionName: "Change Line Style") {
                 document.updateSelectedLineStyle(style)
-            }
-            notifyDocumentDidChange()
-        }
-    }
-
-    func applyDetailScale(_ scale: CGFloat) {
-        activeDetailScale = min(max(scale, 1.5), 6)
-        if document.selectedAnnotation?.kind == .detail {
-            document.performUndoableChange(actionName: "Change Detail Scale") {
-                document.updateSelectedDetailScale(activeDetailScale)
             }
             notifyDocumentDidChange()
         }
@@ -494,6 +489,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             window?.makeFirstResponder(self)
             document.beginInteraction(actionName: "Move Annotation")
             movingLastPoint = point
+            movingDetailRegion = hitAnnotation.kind == .detail ? hitAnnotation.detailRegion(at: point) : nil
             return
         }
 
@@ -575,7 +571,11 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
 
         if let lastPoint = movingLastPoint, document.selectedAnnotation != nil {
             let delta = CGPoint(x: point.x - lastPoint.x, y: point.y - lastPoint.y)
-            document.moveSelected(by: delta)
+            if document.selectedAnnotation?.kind == .detail, let movingDetailRegion {
+                document.moveSelectedDetailRegion(movingDetailRegion, by: delta)
+            } else {
+                document.moveSelected(by: delta)
+            }
             movingLastPoint = point
             onImageChanged?()
             onSelectionChanged?(document.selectedAnnotation)
@@ -600,6 +600,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             creationDragStart = nil
             creationDragCurrent = nil
             movingLastPoint = nil
+            movingDetailRegion = nil
             activeHandle = nil
             handPanLastPoint = nil
             needsDisplay = true
@@ -638,7 +639,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
                 return
             }
             var arrow = ScreenshotEditorAnnotation.arrow(from: creationDragStart, to: point, color: activeColor)
-            arrow.strokeWidth = activeArrowStrokeWidth
+            arrow.strokeWidth = max(activeArrowStrokeWidth, 2)
             document.performUndoableChange(actionName: "Add Arrow") {
                 document.addAnnotation(arrow)
             }
@@ -648,7 +649,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             }
             let snappedPoint = magnetizedLinePoint(from: creationDragStart, to: point)
             var line = ScreenshotEditorAnnotation.line(from: creationDragStart, to: snappedPoint, color: activeColor)
-            line.strokeWidth = activeArrowStrokeWidth
+            line.strokeWidth = max(activeArrowStrokeWidth, 2)
             line.lineStyle = activeLineStyle
             document.performUndoableChange(actionName: "Add Line") {
                 document.addAnnotation(line)
@@ -667,7 +668,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             case .highlight:
                 document.performUndoableChange(actionName: "Add Filled Rectangle") {
                     var annotation = ScreenshotEditorAnnotation.highlight(rect, color: activeColor, fillOpacity: 1)
-                    annotation.strokeWidth = activeRectangleStrokeEnabled ? activeArrowStrokeWidth : 0
+                    annotation.strokeWidth = activeArrowStrokeWidth
                     document.addAnnotation(annotation)
                 }
             case .blur:
@@ -677,7 +678,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             case .outline:
                 document.performUndoableChange(actionName: "Add Outline Rectangle") {
                     var annotation = ScreenshotEditorAnnotation.highlight(rect, color: activeColor, fillOpacity: 0)
-                    annotation.strokeWidth = activeRectangleStrokeEnabled ? activeArrowStrokeWidth : 0
+                    annotation.strokeWidth = activeArrowStrokeWidth
                     document.addAnnotation(annotation)
                 }
             }
@@ -685,12 +686,13 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             guard hypot(point.x - creationDragStart.x, point.y - creationDragStart.y) > 12 else {
                 return
             }
-            let detail = ScreenshotEditorAnnotation.detail(
+            var detail = ScreenshotEditorAnnotation.detail(
                 sourcePoint: creationDragStart,
                 bubbleCenter: point,
                 color: activeColor,
-                scale: activeDetailScale
+                lineWidth: activeArrowStrokeWidth
             )
+            detail.detailShape = activeDetailShape
             document.performUndoableChange(actionName: "Add Detail Callout") {
                 document.addAnnotation(detail)
             }
@@ -857,11 +859,11 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             return nil
         case .arrow:
             var arrow = ScreenshotEditorAnnotation.arrow(from: creationDragStart, to: creationDragCurrent, color: activeColor)
-            arrow.strokeWidth = activeArrowStrokeWidth
+            arrow.strokeWidth = max(activeArrowStrokeWidth, 2)
             return arrow
         case .line:
             var line = ScreenshotEditorAnnotation.line(from: creationDragStart, to: magnetizedLinePoint(from: creationDragStart, to: creationDragCurrent), color: activeColor)
-            line.strokeWidth = activeArrowStrokeWidth
+            line.strokeWidth = max(activeArrowStrokeWidth, 2)
             line.lineStyle = activeLineStyle
             return line
         case .rectangle:
@@ -874,22 +876,24 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             switch activeRectangleMode {
             case .highlight:
                 var annotation = ScreenshotEditorAnnotation.highlight(rect, color: activeColor, fillOpacity: 1)
-                annotation.strokeWidth = activeRectangleStrokeEnabled ? activeArrowStrokeWidth : 0
+                annotation.strokeWidth = activeArrowStrokeWidth
                 return annotation
             case .blur:
                 return .obscure(rect, style: .blur)
             case .outline:
                 var annotation = ScreenshotEditorAnnotation.highlight(rect, color: activeColor, fillOpacity: 0)
-                annotation.strokeWidth = activeRectangleStrokeEnabled ? activeArrowStrokeWidth : 0
+                annotation.strokeWidth = activeArrowStrokeWidth
                 return annotation
             }
         case .detail:
-            return .detail(
+            var detail = ScreenshotEditorAnnotation.detail(
                 sourcePoint: creationDragStart,
                 bubbleCenter: creationDragCurrent,
                 color: activeColor,
-                scale: activeDetailScale
+                lineWidth: activeArrowStrokeWidth
             )
+            detail.detailShape = activeDetailShape
+            return detail
         case .crop, .text:
             return nil
         }

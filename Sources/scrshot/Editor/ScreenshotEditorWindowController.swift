@@ -250,6 +250,9 @@ final class ScreenshotEditorViewController: NSViewController {
     }
 
     func selectTool(_ tool: ScreenshotEditorTool) {
+        if (tool == .arrow || tool == .line), canvasView.activeArrowStrokeWidth < 2 {
+            canvasView.activeArrowStrokeWidth = 2
+        }
         canvasView.tool = tool
         canvasView.clearSelectionForToolChange()
         updateInspector(for: nil)
@@ -276,13 +279,8 @@ final class ScreenshotEditorViewController: NSViewController {
         updateInspector(for: canvasView.selectedAnnotation)
     }
 
-    func setRectangleStrokeEnabled(_ enabled: Bool) {
-        canvasView.applyRectangleStrokeEnabled(enabled)
-        updateInspector(for: canvasView.selectedAnnotation)
-    }
-
-    func setDetailScale(_ scale: CGFloat) {
-        canvasView.applyDetailScale(scale)
+    func setDetailShape(_ shape: ScreenshotDetailShape) {
+        canvasView.applyDetailShape(shape)
         updateInspector(for: canvasView.selectedAnnotation)
     }
 
@@ -311,7 +309,7 @@ final class ScreenshotEditorViewController: NSViewController {
         canvasView.activeArrowStrokeWidth = 8
         canvasView.activeRectangleMode = .blur
         canvasView.activeLineStyle = .solid
-        canvasView.activeDetailScale = 2
+        canvasView.activeDetailShape = .oval
         canvasView.activeTextFontSize = 28
         canvasView.activeTextShowsBackground = false
         canvasView.activeTextBackgroundColor = NSColor.black.withAlphaComponent(0.55)
@@ -641,9 +639,19 @@ final class ScreenshotEditorViewController: NSViewController {
     private func updateInspector(for annotation: ScreenshotEditorAnnotation?) {
         let inspectorColor = (annotation?.kind != .obscure ? annotation?.color : nil) ?? canvasView.activeColor
 
-        let arrowWidth = annotation?.kind == .arrow || annotation?.kind == .line || annotation?.kind == .highlight
+        let rawArrowWidth = annotation?.kind == .arrow
+            || annotation?.kind == .line
+            || annotation?.kind == .highlight
+            || annotation?.kind == .detail
             ? (annotation?.strokeWidth ?? 6)
             : canvasView.activeArrowStrokeWidth
+        let allowsZeroStroke = annotation?.kind == .highlight
+            || annotation?.kind == .detail
+            || (annotation == nil && canvasView.tool == .rectangle)
+            || (annotation == nil && canvasView.tool == .detail)
+        let arrowWidth = allowsZeroStroke
+            ? min(max(rawArrowWidth, 0), 24)
+            : min(max(rawArrowWidth, 2), 24)
 
         let lineStyle = annotation?.kind == .line ? (annotation?.lineStyle ?? .solid) : canvasView.activeLineStyle
 
@@ -656,12 +664,12 @@ final class ScreenshotEditorViewController: NSViewController {
             rectangleMode = canvasView.activeRectangleMode
         }
 
-        let rectangleStrokeEnabled = annotation?.kind == .highlight
-            ? (annotation?.strokeWidth ?? 0) > 0
-            : canvasView.activeRectangleStrokeEnabled
         let detailScale = annotation?.kind == .detail
-            ? (annotation?.detailScale ?? canvasView.activeDetailScale)
-            : canvasView.activeDetailScale
+            ? (annotation?.effectiveDetailScale ?? 2)
+            : 2
+        let detailShape = annotation?.kind == .detail
+            ? (annotation?.detailShape ?? canvasView.activeDetailShape)
+            : canvasView.activeDetailShape
 
         let textSize: CGFloat
         let textAlignment: NSTextAlignment
@@ -681,8 +689,8 @@ final class ScreenshotEditorViewController: NSViewController {
                 rectangleColor: inspectorColor,
                 arrowStrokeWidth: arrowWidth,
                 rectangleMode: rectangleMode,
-                rectangleStrokeEnabled: rectangleStrokeEnabled,
                 detailScale: detailScale,
+                detailShape: detailShape,
                 lineStyle: lineStyle,
                 textSize: textSize,
                 textAlignment: textAlignment

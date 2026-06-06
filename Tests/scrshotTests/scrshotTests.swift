@@ -373,6 +373,28 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         XCTAssertGreaterThan(updatedPixel.b, updatedPixel.r)
     }
 
+    func testRectangleModeCanSwitchBlurBackToFilledRectangle() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 20, height: 20, pixels: Array(repeating: rgba(255, 255, 255), count: 400)))
+        document.addAnnotation(.obscure(CGRect(x: 4, y: 4, width: 10, height: 10), style: .blur))
+
+        document.updateSelectedRectangleMode(.highlight, defaultColor: .systemBlue, defaultStrokeWidth: 5)
+
+        XCTAssertEqual(document.selectedAnnotation?.kind, .highlight)
+        XCTAssertEqual(document.selectedAnnotation?.fillOpacity, 1)
+        XCTAssertEqual(document.selectedAnnotation?.strokeWidth, 5)
+    }
+
+    func testRectangleModeCanSwitchBlurBackToOutlineWithZeroStroke() {
+        let document = ScreenshotEditorDocument(image: makeImage(width: 20, height: 20, pixels: Array(repeating: rgba(255, 255, 255), count: 400)))
+        document.addAnnotation(.obscure(CGRect(x: 4, y: 4, width: 10, height: 10), style: .blur))
+
+        document.updateSelectedRectangleMode(.outline, defaultColor: .systemBlue, defaultStrokeWidth: 0)
+
+        XCTAssertEqual(document.selectedAnnotation?.kind, .highlight)
+        XCTAssertEqual(document.selectedAnnotation?.fillOpacity, 0)
+        XCTAssertEqual(document.selectedAnnotation?.strokeWidth, 0)
+    }
+
     func testRenderedImageIncludesRedactAnnotation() {
         let basePixels = Array(repeating: rgba(230, 230, 230), count: 40 * 40)
         let document = ScreenshotEditorDocument(image: makeImage(width: 40, height: 40, pixels: basePixels))
@@ -532,7 +554,7 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
             sourcePoint: CGPoint(x: 36, y: 34),
             bubbleCenter: CGPoint(x: 118, y: 82),
             color: .systemRed,
-            scale: 2.4
+            lineWidth: 4
         ))
 
         let plainRendered = plainDocument.renderedImage()!
@@ -541,7 +563,7 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         XCTAssertGreaterThan(differingPixelCount(between: plainRendered, and: detailRendered), 900)
     }
 
-    func testDetailCalloutZoomChangesSourceMarkerAndMagnifiedContent() {
+    func testDetailCalloutSourceSizeChangesSourceMarkerAndMagnifiedContent() {
         var basePixels: [RGBA] = []
         for y in 0..<140 {
             for x in 0..<180 {
@@ -555,16 +577,18 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
             sourcePoint: CGPoint(x: 44, y: 42),
             bubbleCenter: CGPoint(x: 132, y: 94),
             color: .systemBlue,
-            scale: 1.5
+            lineWidth: 4
         ))
 
         let highZoomDocument = ScreenshotEditorDocument(image: baseImage)
-        highZoomDocument.addAnnotation(.detail(
+        var highZoomDetail = ScreenshotEditorAnnotation.detail(
             sourcePoint: CGPoint(x: 44, y: 42),
             bubbleCenter: CGPoint(x: 132, y: 94),
             color: .systemBlue,
-            scale: 4.5
-        ))
+            lineWidth: 4
+        )
+        highZoomDetail.detailSourceRect = CGRect(x: 34, y: 32, width: 20, height: 20)
+        highZoomDocument.addAnnotation(highZoomDetail)
 
         let lowZoomRendered = lowZoomDocument.renderedImage()!
         let highZoomRendered = highZoomDocument.renderedImage()!
@@ -595,7 +619,7 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
             sourcePoint: CGPoint(x: 44, y: 42),
             bubbleCenter: CGPoint(x: 128, y: 92),
             color: .systemRed,
-            scale: 6
+            lineWidth: 4
         ))
 
         let rendered = document.renderedImage()!
@@ -628,7 +652,7 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
             sourcePoint: CGPoint(x: 44, y: 44),
             bubbleCenter: CGPoint(x: 116, y: 96),
             color: .systemRed,
-            scale: 5
+            lineWidth: 4
         ))
 
         let rendered = document.renderedImage()!

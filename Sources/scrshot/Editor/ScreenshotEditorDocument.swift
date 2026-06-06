@@ -69,12 +69,21 @@ final class ScreenshotEditorDocument {
 
     func updateSelectedStrokeWidth(_ strokeWidth: CGFloat) {
         guard let index = selectedIndex else { return }
-        guard annotations[index].kind == .arrow || annotations[index].kind == .line || annotations[index].kind == .highlight else { return }
-        if annotations[index].kind == .highlight, strokeWidth <= 0 {
+        guard annotations[index].kind == .arrow
+                || annotations[index].kind == .line
+                || annotations[index].kind == .highlight
+                || annotations[index].kind == .detail else { return }
+        if (annotations[index].kind == .highlight || annotations[index].kind == .detail), strokeWidth <= 0 {
             annotations[index].strokeWidth = 0
         } else {
             annotations[index].strokeWidth = min(max(strokeWidth, 2), 24)
         }
+    }
+
+    func updateSelectedDetailShape(_ shape: ScreenshotDetailShape) {
+        guard let index = selectedIndex else { return }
+        guard annotations[index].kind == .detail else { return }
+        annotations[index].detailShape = shape
     }
 
     func updateText(_ text: String, for annotationID: UUID) {
@@ -121,6 +130,29 @@ final class ScreenshotEditorDocument {
         annotations[index].obscureStyle = style
     }
 
+    func updateSelectedRectangleMode(_ mode: ScreenshotRectangleToolMode, defaultColor: NSColor, defaultStrokeWidth: CGFloat) {
+        guard let index = selectedIndex else { return }
+        let annotation = annotations[index]
+        guard annotation.kind == .highlight || annotation.kind == .obscure else { return }
+
+        switch mode {
+        case .blur:
+            annotations[index] = annotation.asObscure(style: .blur)
+        case .highlight:
+            annotations[index] = annotation.asHighlight(
+                color: annotation.kind == .obscure ? defaultColor : annotation.color,
+                fillOpacity: 1,
+                strokeWidth: annotation.kind == .obscure ? min(max(defaultStrokeWidth, 0), 24) : annotation.strokeWidth
+            )
+        case .outline:
+            annotations[index] = annotation.asHighlight(
+                color: annotation.kind == .obscure ? defaultColor : annotation.color,
+                fillOpacity: 0,
+                strokeWidth: annotation.kind == .obscure ? min(max(defaultStrokeWidth, 0), 24) : annotation.strokeWidth
+            )
+        }
+    }
+
     func updateSelectedLineStyle(_ style: ScreenshotLineStyle) {
         guard let index = selectedIndex else { return }
         guard annotations[index].kind == .line else { return }
@@ -133,15 +165,23 @@ final class ScreenshotEditorDocument {
         annotations[index].fillOpacity = min(max(opacity, 0), 1)
     }
 
-    func updateSelectedDetailScale(_ scale: CGFloat) {
-        guard let index = selectedIndex else { return }
-        guard annotations[index].kind == .detail else { return }
-        annotations[index].detailScale = min(max(scale, 1.5), 6)
-    }
-
     func moveSelected(by delta: CGPoint) {
         guard let index = selectedIndex else { return }
         annotations[index].move(by: delta, clampedTo: CGRect(origin: .zero, size: canvasSize))
+    }
+
+    func moveSelectedDetailRegion(_ region: ScreenshotDetailRegion, by delta: CGPoint) {
+        guard let index = selectedIndex else { return }
+        guard annotations[index].kind == .detail else { return }
+        let bounds = CGRect(origin: .zero, size: canvasSize)
+        switch region {
+        case .bubble:
+            annotations[index].moveDetailBubble(by: delta, clampedTo: bounds)
+        case .source:
+            annotations[index].moveDetailSource(by: delta, clampedTo: bounds)
+        case .all:
+            annotations[index].move(by: delta, clampedTo: bounds)
+        }
     }
 
     func resizeSelected(using handle: ScreenshotAnnotationHandle, to point: CGPoint) {

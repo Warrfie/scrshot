@@ -37,7 +37,9 @@ struct ScreenshotEditorAnnotation: Identifiable {
     var showsTextBackground: Bool
     var textBackgroundColor: NSColor
     var detailSourcePoint: CGPoint
+    var detailSourceRect: CGRect
     var detailScale: CGFloat
+    var detailShape: ScreenshotDetailShape
 
     static func arrow(from start: CGPoint, to end: CGPoint, color: NSColor) -> ScreenshotEditorAnnotation {
         ScreenshotEditorAnnotation(
@@ -55,7 +57,9 @@ struct ScreenshotEditorAnnotation: Identifiable {
             showsTextBackground: false,
             textBackgroundColor: .clear,
             detailSourcePoint: .zero,
-            detailScale: 2
+            detailSourceRect: .zero,
+            detailScale: 2,
+            detailShape: .oval
         )
     }
 
@@ -75,7 +79,9 @@ struct ScreenshotEditorAnnotation: Identifiable {
             showsTextBackground: false,
             textBackgroundColor: .clear,
             detailSourcePoint: .zero,
-            detailScale: 2
+            detailSourceRect: .zero,
+            detailScale: 2,
+            detailShape: .oval
         )
     }
 
@@ -100,7 +106,9 @@ struct ScreenshotEditorAnnotation: Identifiable {
             showsTextBackground: false,
             textBackgroundColor: .clear,
             detailSourcePoint: .zero,
-            detailScale: 2
+            detailSourceRect: .zero,
+            detailScale: 2,
+            detailShape: .oval
         )
     }
 
@@ -120,20 +128,29 @@ struct ScreenshotEditorAnnotation: Identifiable {
             showsTextBackground: false,
             textBackgroundColor: .clear,
             detailSourcePoint: .zero,
-            detailScale: 2
+            detailSourceRect: .zero,
+            detailScale: 2,
+            detailShape: .oval
         )
     }
 
-    static func detail(sourcePoint: CGPoint, bubbleCenter: CGPoint, color: NSColor, scale: CGFloat) -> ScreenshotEditorAnnotation {
+    static func detail(sourcePoint: CGPoint, bubbleCenter: CGPoint, color: NSColor, lineWidth: CGFloat) -> ScreenshotEditorAnnotation {
         let size = CGSize(width: 140, height: 140)
         let origin = CGPoint(x: bubbleCenter.x - size.width / 2, y: bubbleCenter.y - size.height / 2)
+        let sourceSize = CGSize(width: 70, height: 70)
+        let sourceRect = CGRect(
+            x: sourcePoint.x - sourceSize.width / 2,
+            y: sourcePoint.y - sourceSize.height / 2,
+            width: sourceSize.width,
+            height: sourceSize.height
+        )
         return ScreenshotEditorAnnotation(
             id: UUID(),
             kind: .detail,
             rect: CGRect(origin: origin, size: size),
             text: nil,
             color: color,
-            strokeWidth: 3,
+            strokeWidth: min(max(lineWidth, 0), 24),
             fontSize: 0,
             textAlignment: .left,
             obscureStyle: .redact,
@@ -142,7 +159,9 @@ struct ScreenshotEditorAnnotation: Identifiable {
             showsTextBackground: false,
             textBackgroundColor: .clear,
             detailSourcePoint: sourcePoint,
-            detailScale: min(max(scale, 1.5), 6)
+            detailSourceRect: sourceRect,
+            detailScale: 2,
+            detailShape: .oval
         )
     }
 
@@ -170,7 +189,9 @@ struct ScreenshotEditorAnnotation: Identifiable {
             showsTextBackground: showsBackground,
             textBackgroundColor: backgroundColor,
             detailSourcePoint: .zero,
-            detailScale: 2
+            detailSourceRect: .zero,
+            detailScale: 2,
+            detailShape: .oval
         )
     }
 
@@ -186,20 +207,32 @@ struct ScreenshotEditorAnnotation: Identifiable {
         CGPoint(x: (startPoint.x + endPoint.x) / 2, y: (startPoint.y + endPoint.y) / 2)
     }
 
-    private var clampedDetailScale: CGFloat {
-        min(max(detailScale, 1.5), 6)
+    var effectiveDetailScale: CGFloat {
+        let sourceRect = normalizedDetailSourceRect
+        let bubbleRect = rect.standardized
+        guard sourceRect.width > 0, sourceRect.height > 0 else {
+            return min(max(detailScale, 1.5), 6)
+        }
+        return min(max(min(bubbleRect.width / sourceRect.width, bubbleRect.height / sourceRect.height), 1.1), 8)
     }
 
-    private var detailSourceRect: CGRect {
+    var normalizedDetailSourceRect: CGRect {
+        if detailSourceRect.width > 0, detailSourceRect.height > 0 {
+            let source = detailSourceRect.standardized
+            let bubble = rect.standardized
+            guard bubble.width > 0, bubble.height > 0 else { return source }
+            return source.adjusted(toAspectRatio: bubble.width / bubble.height)
+        }
         let bubbleRect = rect.standardized
-        let sampleWidth = max(bubbleRect.width / clampedDetailScale, 24)
-        let sampleHeight = max(bubbleRect.height / clampedDetailScale, 24)
+        let scale = min(max(detailScale, 1.5), 6)
+        let sampleWidth = max(bubbleRect.width / scale, 24)
+        let sampleHeight = max(bubbleRect.height / scale, 24)
         return CGRect(
             x: detailSourcePoint.x - sampleWidth / 2,
             y: detailSourcePoint.y - sampleHeight / 2,
             width: sampleWidth,
             height: sampleHeight
-        )
+        ).standardized
     }
 
     var selectionBounds: CGRect {
@@ -215,7 +248,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
             return rect.standardized
         case .detail:
             let bubbleRect = rect.standardized
-            let sourceRect = detailSourceRect
+            let sourceRect = normalizedDetailSourceRect
             return bubbleRect.union(sourceRect).insetBy(dx: -8, dy: -8)
         }
     }
@@ -240,6 +273,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
         adjusted.rect = adjusted.rect.offsetBy(dx: dx, dy: dy)
         if adjusted.kind == .detail {
             adjusted.detailSourcePoint = adjusted.detailSourcePoint.offsetBy(dx: dx, dy: dy)
+            adjusted.detailSourceRect = adjusted.normalizedDetailSourceRect.offsetBy(dx: dx, dy: dy)
         }
         return adjusted
     }
@@ -279,6 +313,50 @@ struct ScreenshotEditorAnnotation: Identifiable {
         }
 
         return adjusted
+    }
+
+    func asHighlight(color: NSColor, fillOpacity: CGFloat, strokeWidth: CGFloat) -> ScreenshotEditorAnnotation {
+        ScreenshotEditorAnnotation(
+            id: id,
+            kind: .highlight,
+            rect: rect.standardized,
+            text: nil,
+            color: color,
+            strokeWidth: min(max(strokeWidth, 0), 24),
+            fontSize: 0,
+            textAlignment: .left,
+            obscureStyle: .redact,
+            lineStyle: .solid,
+            fillOpacity: min(max(fillOpacity, 0), 1),
+            showsTextBackground: false,
+            textBackgroundColor: .clear,
+            detailSourcePoint: .zero,
+            detailSourceRect: .zero,
+            detailScale: 2,
+            detailShape: .oval
+        )
+    }
+
+    func asObscure(style: ScreenshotObscureStyle) -> ScreenshotEditorAnnotation {
+        ScreenshotEditorAnnotation(
+            id: id,
+            kind: .obscure,
+            rect: rect.standardized,
+            text: nil,
+            color: .black,
+            strokeWidth: 0,
+            fontSize: 0,
+            textAlignment: .left,
+            obscureStyle: style,
+            lineStyle: .solid,
+            fillOpacity: 1,
+            showsTextBackground: false,
+            textBackgroundColor: .clear,
+            detailSourcePoint: .zero,
+            detailSourceRect: .zero,
+            detailScale: 2,
+            detailShape: .oval
+        )
     }
 
     func drawSelection(scale: CGFloat, showsHandles: Bool) {
@@ -325,13 +403,26 @@ struct ScreenshotEditorAnnotation: Identifiable {
                 .arrowStart: CGRect(x: startPoint.x - handleSize / 2, y: startPoint.y - handleSize / 2, width: handleSize, height: handleSize),
                 .arrowEnd: CGRect(x: endPoint.x - handleSize / 2, y: endPoint.y - handleSize / 2, width: handleSize, height: handleSize)
             ]
-        case .highlight, .obscure, .text, .detail:
+        case .highlight, .obscure, .text:
             let bounds = rect.standardized
             return [
                 .topLeft: CGRect(x: bounds.minX - handleSize / 2, y: bounds.minY - handleSize / 2, width: handleSize, height: handleSize),
                 .topRight: CGRect(x: bounds.maxX - handleSize / 2, y: bounds.minY - handleSize / 2, width: handleSize, height: handleSize),
                 .bottomLeft: CGRect(x: bounds.minX - handleSize / 2, y: bounds.maxY - handleSize / 2, width: handleSize, height: handleSize),
                 .bottomRight: CGRect(x: bounds.maxX - handleSize / 2, y: bounds.maxY - handleSize / 2, width: handleSize, height: handleSize)
+            ]
+        case .detail:
+            let bubbleBounds = rect.standardized
+            let sourceBounds = normalizedDetailSourceRect
+            return [
+                .topLeft: CGRect(x: bubbleBounds.minX - handleSize / 2, y: bubbleBounds.minY - handleSize / 2, width: handleSize, height: handleSize),
+                .topRight: CGRect(x: bubbleBounds.maxX - handleSize / 2, y: bubbleBounds.minY - handleSize / 2, width: handleSize, height: handleSize),
+                .bottomLeft: CGRect(x: bubbleBounds.minX - handleSize / 2, y: bubbleBounds.maxY - handleSize / 2, width: handleSize, height: handleSize),
+                .bottomRight: CGRect(x: bubbleBounds.maxX - handleSize / 2, y: bubbleBounds.maxY - handleSize / 2, width: handleSize, height: handleSize),
+                .detailSourceTopLeft: CGRect(x: sourceBounds.minX - handleSize / 2, y: sourceBounds.minY - handleSize / 2, width: handleSize, height: handleSize),
+                .detailSourceTopRight: CGRect(x: sourceBounds.maxX - handleSize / 2, y: sourceBounds.minY - handleSize / 2, width: handleSize, height: handleSize),
+                .detailSourceBottomLeft: CGRect(x: sourceBounds.minX - handleSize / 2, y: sourceBounds.maxY - handleSize / 2, width: handleSize, height: handleSize),
+                .detailSourceBottomRight: CGRect(x: sourceBounds.maxX - handleSize / 2, y: sourceBounds.maxY - handleSize / 2, width: handleSize, height: handleSize)
             ]
         }
     }
@@ -359,8 +450,8 @@ struct ScreenshotEditorAnnotation: Identifiable {
             return rect.standardized.insetBy(dx: -6, dy: -6).contains(point)
         case .detail:
             let bubbleRect = rect.standardized
-            let lineDistance = point.distanceToSegment(start: detailSourcePoint, end: bubbleRect.centerPoint)
-            let sourceRect = detailSourceRect.insetBy(dx: -6, dy: -6)
+            let sourceRect = normalizedDetailSourceRect.insetBy(dx: -6, dy: -6)
+            let lineDistance = point.distanceToSegment(start: connectorStartPoint, end: connectorEndPoint)
             return bubbleRect.insetBy(dx: -6, dy: -6).contains(point) || sourceRect.contains(point) || lineDistance <= 8
         }
     }
@@ -382,14 +473,163 @@ struct ScreenshotEditorAnnotation: Identifiable {
             rect = CGRect(origin: origin, size: current.size)
         case .detail:
             let current = rect.standardized
-            let maxX = bounds.maxX - current.width
-            let maxY = bounds.maxY - current.height
-            let origin = CGPoint(
-                x: min(max(current.minX + delta.x, bounds.minX), maxX),
-                y: min(max(current.minY + delta.y, bounds.minY), maxY)
+            let source = normalizedDetailSourceRect
+            let union = current.union(source)
+            let maxX = bounds.maxX - union.width
+            let maxY = bounds.maxY - union.height
+            let unionOrigin = CGPoint(
+                x: min(max(union.minX + delta.x, bounds.minX), maxX),
+                y: min(max(union.minY + delta.y, bounds.minY), maxY)
             )
-            rect = CGRect(origin: origin, size: current.size)
-            detailSourcePoint = detailSourcePoint.offsetBy(dx: delta.x, dy: delta.y).clamped(to: bounds)
+            let clampedDelta = CGPoint(x: unionOrigin.x - union.minX, y: unionOrigin.y - union.minY)
+            rect = current.offsetBy(dx: clampedDelta.x, dy: clampedDelta.y)
+            detailSourceRect = source.offsetBy(dx: clampedDelta.x, dy: clampedDelta.y)
+            detailSourcePoint = detailSourceRect.standardized.centerPoint
+            detailScale = effectiveDetailScale
+        }
+    }
+
+    mutating func moveDetailBubble(by delta: CGPoint, clampedTo bounds: CGRect) {
+        guard kind == .detail else { return }
+        let current = rect.standardized
+        let maxX = bounds.maxX - current.width
+        let maxY = bounds.maxY - current.height
+        let origin = CGPoint(
+            x: min(max(current.minX + delta.x, bounds.minX), maxX),
+            y: min(max(current.minY + delta.y, bounds.minY), maxY)
+        )
+        rect = CGRect(origin: origin, size: current.size)
+        detailScale = effectiveDetailScale
+    }
+
+    mutating func moveDetailSource(by delta: CGPoint, clampedTo bounds: CGRect) {
+        guard kind == .detail else { return }
+        let current = normalizedDetailSourceRect
+        let maxX = bounds.maxX - current.width
+        let maxY = bounds.maxY - current.height
+        let origin = CGPoint(
+            x: min(max(current.minX + delta.x, bounds.minX), maxX),
+            y: min(max(current.minY + delta.y, bounds.minY), maxY)
+        )
+        detailSourceRect = CGRect(origin: origin, size: current.size)
+        detailSourcePoint = detailSourceRect.standardized.centerPoint
+        detailScale = effectiveDetailScale
+    }
+
+    mutating func resizeDetailSource(using handle: ScreenshotAnnotationHandle, to point: CGPoint, clampedTo bounds: CGRect) {
+        guard kind == .detail else { return }
+        detailSourceRect = resizedRect(
+            normalizedDetailSourceRect,
+            using: handle,
+            to: point,
+            clampedTo: bounds,
+            minimumSide: 24
+        )
+        detailSourcePoint = detailSourceRect.standardized.centerPoint
+        rect = rect.standardized.adjusted(toAspectRatio: detailSourceRect.standardized.aspectRatio)
+        detailScale = effectiveDetailScale
+    }
+
+    private mutating func resizeDetailBubble(using handle: ScreenshotAnnotationHandle, to point: CGPoint, clampedTo bounds: CGRect) {
+        let resized = resizedRect(
+            rect.standardized,
+            using: handle,
+            to: point,
+            clampedTo: bounds,
+            minimumSide: 60
+        )
+        rect = resized
+        detailSourceRect = normalizedDetailSourceRect.adjusted(toAspectRatio: rect.standardized.aspectRatio)
+        detailSourcePoint = detailSourceRect.standardized.centerPoint
+        detailScale = effectiveDetailScale
+    }
+
+    private func resizedRect(
+        _ current: CGRect,
+        using handle: ScreenshotAnnotationHandle,
+        to point: CGPoint,
+        clampedTo bounds: CGRect,
+        minimumSide: CGFloat
+    ) -> CGRect {
+        let clampedPoint = point.clamped(to: bounds)
+        var minX = current.minX
+        var minY = current.minY
+        var maxX = current.maxX
+        var maxY = current.maxY
+
+        switch handle {
+        case .topLeft, .detailSourceTopLeft:
+            minX = clampedPoint.x
+            minY = clampedPoint.y
+        case .topRight, .detailSourceTopRight:
+            maxX = clampedPoint.x
+            minY = clampedPoint.y
+        case .bottomLeft, .detailSourceBottomLeft:
+            minX = clampedPoint.x
+            maxY = clampedPoint.y
+        case .bottomRight, .detailSourceBottomRight:
+            maxX = clampedPoint.x
+            maxY = clampedPoint.y
+        default:
+            break
+        }
+
+        let width = max(minimumSide, abs(maxX - minX))
+        let height = max(minimumSide, abs(maxY - minY))
+        return CGRect(x: min(minX, maxX), y: min(minY, maxY), width: width, height: height)
+            .intersection(bounds)
+    }
+
+    var connectorStartPoint: CGPoint {
+        let source = normalizedDetailSourceRect
+        let bubble = rect.standardized
+        return detailEdgePoint(in: source, toward: bubble.centerPoint)
+    }
+
+    var connectorEndPoint: CGPoint {
+        let source = normalizedDetailSourceRect
+        let bubble = rect.standardized
+        return detailEdgePoint(in: bubble, toward: source.centerPoint)
+    }
+
+    private func detailEdgePoint(in rect: CGRect, toward target: CGPoint) -> CGPoint {
+        switch detailShape {
+        case .oval:
+            return rect.ellipseEdgePoint(toward: target)
+        case .rectangle:
+            return rect.edgePoint(toward: target)
+        }
+    }
+
+    private func detailPath(in rect: CGRect) -> NSBezierPath {
+        switch detailShape {
+        case .oval:
+            return NSBezierPath(ovalIn: rect)
+        case .rectangle:
+            return NSBezierPath(rect: rect)
+        }
+    }
+
+    func detailRegion(at point: CGPoint) -> ScreenshotDetailRegion? {
+        guard kind == .detail else { return nil }
+        if rect.standardized.insetBy(dx: -6, dy: -6).contains(point) {
+            return .bubble
+        }
+        if normalizedDetailSourceRect.insetBy(dx: -6, dy: -6).contains(point) {
+            return .source
+        }
+        if point.distanceToSegment(start: connectorStartPoint, end: connectorEndPoint) <= 8 {
+            return .all
+        }
+        return nil
+    }
+
+    mutating func resizeDetail(using handle: ScreenshotAnnotationHandle, to point: CGPoint, clampedTo bounds: CGRect) {
+        switch handle {
+        case .detailSourceTopLeft, .detailSourceTopRight, .detailSourceBottomLeft, .detailSourceBottomRight:
+            resizeDetailSource(using: handle, to: point, clampedTo: bounds)
+        default:
+            resizeDetailBubble(using: handle, to: point, clampedTo: bounds)
         }
     }
 
@@ -417,7 +657,7 @@ struct ScreenshotEditorAnnotation: Identifiable {
             default:
                 break
             }
-        case .highlight, .obscure, .text, .detail:
+        case .highlight, .obscure, .text:
             let current = rect.standardized
             let clampedPoint = point.clamped(to: bounds)
             var minX = current.minX
@@ -454,6 +694,8 @@ struct ScreenshotEditorAnnotation: Identifiable {
             let width = max(minimumSide, abs(maxX - minX))
             let height = max(minimumSide, abs(maxY - minY))
             rect = CGRect(x: min(minX, maxX), y: min(minY, maxY), width: width, height: height)
+        case .detail:
+            resizeDetail(using: handle, to: point, clampedTo: bounds)
         }
     }
 
@@ -533,8 +775,12 @@ struct ScreenshotEditorAnnotation: Identifiable {
             path.line(to: p4)
             path.close()
             return path
-        case .highlight, .obscure, .text, .detail:
+        case .highlight, .obscure, .text:
             return NSBezierPath(rect: selectionBounds)
+        case .detail:
+            let path = detailPath(in: normalizedDetailSourceRect)
+            path.append(detailPath(in: rect.standardized))
+            return path
         }
     }
 
@@ -577,42 +823,42 @@ struct ScreenshotEditorAnnotation: Identifiable {
 
     private func drawDetail(baseImage: CGImage?) {
         guard let baseImage else { return }
-        let bubbleRect = rect.standardized.integral
+        let bubbleRect = rect.standardized
         guard bubbleRect.width > 20, bubbleRect.height > 20 else { return }
 
-        let sampleRect = detailSourceRect
+        let sourceRect = normalizedDetailSourceRect
+        let sampleRect = sourceRect.integral
             .intersection(CGRect(origin: .zero, size: CGSize(width: baseImage.width, height: baseImage.height)))
 
-        let bubbleCenter = bubbleRect.centerPoint
-        let connector = NSBezierPath()
-        connector.move(to: detailSourcePoint)
-        connector.line(to: bubbleCenter)
-        color.withAlphaComponent(0.9).setStroke()
-        connector.lineWidth = max(strokeWidth, 2)
-        connector.stroke()
+        if strokeWidth > 0 {
+            let connector = NSBezierPath()
+            connector.move(to: connectorStartPoint)
+            connector.line(to: connectorEndPoint)
+            color.withAlphaComponent(0.9).setStroke()
+            connector.lineWidth = strokeWidth
+            connector.lineCapStyle = .round
+            connector.stroke()
 
-        let sourceMarkerRect = detailSourceRect.integral
-        let sourceMarker = NSBezierPath(ovalIn: sourceMarkerRect)
-        NSColor.windowBackgroundColor.withAlphaComponent(0.2).setFill()
-        sourceMarker.fill()
-        color.setStroke()
-        sourceMarker.lineWidth = max(strokeWidth, 2)
-        sourceMarker.stroke()
+            let sourceMarker = detailPath(in: sourceRect)
+            color.setStroke()
+            sourceMarker.lineWidth = strokeWidth
+            sourceMarker.stroke()
+        }
 
         guard let zoomedImage = Self.croppedImage(from: baseImage, in: sampleRect) else { return }
 
-        let clipPath = NSBezierPath(ovalIn: bubbleRect)
+        let clipPath = detailPath(in: bubbleRect)
         NSGraphicsContext.saveGraphicsState()
         clipPath.addClip()
         drawCGImageInTopLeftCoordinates(zoomedImage, in: bubbleRect)
         NSGraphicsContext.restoreGraphicsState()
 
-        let bubblePath = NSBezierPath(ovalIn: bubbleRect)
-        NSColor.windowBackgroundColor.withAlphaComponent(0.18).setFill()
-        bubblePath.fill()
-        color.setStroke()
-        bubblePath.lineWidth = max(strokeWidth, 2)
-        bubblePath.stroke()
+        if strokeWidth > 0 {
+            let bubblePath = detailPath(in: bubbleRect)
+            color.setStroke()
+            bubblePath.lineWidth = strokeWidth
+            bubblePath.stroke()
+        }
     }
 
     private func drawText() {
@@ -685,7 +931,9 @@ extension ScreenshotEditorAnnotation: Equatable {
         lhs.fillOpacity == rhs.fillOpacity &&
         lhs.showsTextBackground == rhs.showsTextBackground &&
         lhs.detailSourcePoint == rhs.detailSourcePoint &&
+        lhs.detailSourceRect == rhs.detailSourceRect &&
         lhs.detailScale == rhs.detailScale &&
+        lhs.detailShape == rhs.detailShape &&
         lhs.color.matches(rhs.color) &&
         lhs.textBackgroundColor.matches(rhs.textBackgroundColor)
     }

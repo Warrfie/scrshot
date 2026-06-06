@@ -165,14 +165,14 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
     private var arrowInspectorPanel: some View {
         HStack(alignment: .center, spacing: 8) {
             annotationColorSection
-            strokeWidthSection
+            strokeWidthSection()
         }
     }
 
     private var lineInspectorPanel: some View {
         HStack(alignment: .center, spacing: 8) {
             annotationColorSection
-            strokeWidthSection
+            strokeWidthSection()
             lineStyleSection
         }
     }
@@ -182,10 +182,7 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
             rectangleModeSection
             if viewModel.rectangleMode != .blur {
                 rectangleColorSection
-                rectangleStrokeToggleSection
-                if viewModel.rectangleStrokeEnabled {
-                    strokeWidthSection
-                }
+                strokeWidthSection(minValue: 0)
             }
         }
     }
@@ -193,7 +190,8 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
     private var detailInspectorPanel: some View {
         HStack(alignment: .center, spacing: 8) {
             annotationColorSection
-            detailScaleSection
+            strokeWidthSection(minValue: 0)
+            detailShapeSection
         }
     }
 
@@ -216,16 +214,46 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
         }
     }
 
-    private var strokeWidthSection: some View {
+    private func strokeWidthSection(minValue: CGFloat = 2) -> some View {
         inspectorSection(isSlider: true) {
             Slider(
                 value: Binding(
                     get: { viewModel.arrowStrokeWidth },
                     set: { viewModel.setArrowStrokeWidth($0) }
                 ),
-                in: 2...24
+                in: minValue...24
             )
             .frame(width: 120)
+        }
+    }
+
+    private var detailShapeSection: some View {
+        inspectorSection(isWideControl: true) {
+            HStack(spacing: 0) {
+                ForEach(ScreenshotDetailShape.allCases, id: \.self) { shape in
+                    Button {
+                        viewModel.setDetailShape(shape)
+                    } label: {
+                        ZStack {
+                            Rectangle()
+                                .fill(Color.primary.opacity(0.001))
+                            Image(systemName: shape.symbolName)
+                                .font(.system(size: EditorToolbarMetrics.standardIconSize, weight: .semibold))
+                                .foregroundStyle(
+                                    viewModel.detailShape == shape
+                                        ? Color.accentColor
+                                        : Color.primary.opacity(0.78)
+                                )
+                        }
+                        .editorToolbarControlFrame()
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .editorToolbarButtonBackground(isSelected: viewModel.detailShape == shape)
+                    .help(shape.title)
+                }
+            }
+            .frame(height: EditorToolbarMetrics.standardControlSize)
         }
     }
 
@@ -289,29 +317,6 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
         }
     }
 
-    private func rectangleStrokeButton(isEnabled: Bool, symbol: String, help: String) -> some View {
-        Button {
-            viewModel.setRectangleStrokeEnabled(isEnabled)
-        } label: {
-            ZStack {
-                Rectangle()
-                    .fill(Color.primary.opacity(0.001))
-                Image(systemName: symbol)
-                    .font(.system(size: EditorToolbarMetrics.standardIconSize, weight: .semibold))
-                    .foregroundStyle(
-                        viewModel.rectangleStrokeEnabled == isEnabled
-                            ? Color.accentColor
-                            : Color.primary.opacity(0.78)
-                    )
-            }
-            .editorToolbarControlFrame()
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .editorToolbarButtonBackground(isSelected: viewModel.rectangleStrokeEnabled == isEnabled)
-        .help(help)
-    }
-
     private var rectangleColorSection: some View {
         inspectorSection {
             inspectorColorControl(
@@ -320,29 +325,6 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
                     set: { viewModel.setRectangleColor($0) }
                 )
             )
-        }
-    }
-
-    private var rectangleStrokeToggleSection: some View {
-        inspectorSection(isWideControl: true) {
-            HStack(spacing: 0) {
-                rectangleStrokeButton(isEnabled: true, symbol: "rectangle", help: "Stroke")
-                rectangleStrokeButton(isEnabled: false, symbol: "rectangle.dashed", help: "No Stroke")
-            }
-            .frame(height: EditorToolbarMetrics.standardControlSize)
-        }
-    }
-
-    private var detailScaleSection: some View {
-        inspectorSection(isSlider: true) {
-            Slider(
-                value: Binding(
-                    get: { viewModel.detailScale },
-                    set: { viewModel.setDetailScale($0) }
-                ),
-                in: 1.5...6
-            )
-            .frame(width: 120)
         }
     }
 

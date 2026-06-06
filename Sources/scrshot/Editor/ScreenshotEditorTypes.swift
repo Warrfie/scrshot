@@ -64,6 +64,29 @@ enum ScreenshotLineStyle: String, CaseIterable {
     }
 }
 
+enum ScreenshotDetailShape: String, CaseIterable {
+    case oval
+    case rectangle
+
+    var title: String {
+        switch self {
+        case .oval:
+            return "Oval"
+        case .rectangle:
+            return "Rectangle"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .oval:
+            return "circle"
+        case .rectangle:
+            return "rectangle"
+        }
+    }
+}
+
 enum ScreenshotEditorTool: String, CaseIterable {
     case hand = "Hand"
     case crop = "Crop"
@@ -104,6 +127,16 @@ enum ScreenshotAnnotationHandle {
     case left
     case arrowStart
     case arrowEnd
+    case detailSourceTopLeft
+    case detailSourceTopRight
+    case detailSourceBottomLeft
+    case detailSourceBottomRight
+}
+
+enum ScreenshotDetailRegion {
+    case bubble
+    case source
+    case all
 }
 
 func magnetizedLinePoint(from start: CGPoint, to end: CGPoint) -> CGPoint {
