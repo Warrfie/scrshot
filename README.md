@@ -10,6 +10,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Warrfie/scrshot/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Warrfie/scrshot/ci.yml?branch=main&label=CI&style=flat-square"></a>
+  <a href="https://github.com/Warrfie/scrshot/actions/workflows/release-artifacts.yml"><img alt="release artifacts" src="https://img.shields.io/github/actions/workflow/status/Warrfie/scrshot/release-artifacts.yml?label=Release&style=flat-square"></a>
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS%2013%2B-111827?style=flat-square">
   <img alt="ui" src="https://img.shields.io/badge/UI-AppKit-EA580C?style=flat-square">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-0F766E?style=flat-square">
@@ -126,15 +128,17 @@ You will need:
 3. Pick your development team in `Signing & Capabilities`
 4. Build and run
 
-### Download Preview Build
+### Download Release Build
 
-For GitHub-hosted preview builds:
+For public downloads:
 
-1. Open the latest successful `Release Artifacts` workflow run in `Actions`
-2. Download the `scrshot-dmg-<commit>` artifact
+1. Open the latest GitHub Release: [`github.com/Warrfie/scrshot/releases`](https://github.com/Warrfie/scrshot/releases)
+2. Download `scrshot-<version>.dmg`
 3. Open the `.dmg` and drag `scrshot.app` to `Applications`
 
-Tagged release artifacts are signed, notarized, stapled, and Gatekeeper-checked by GitHub Actions when the required Apple secrets are configured. See `docs/GITHUB_SIGNING.md`.
+Tagged release DMGs are signed, notarized, stapled, and published as GitHub Release assets when the required Apple secrets are configured. See [`docs/GITHUB_SIGNING.md`](docs/GITHUB_SIGNING.md).
+
+GitHub Actions artifacts are retained for CI/debug access only; use GitHub Releases for user-facing downloads.
 
 ## Default Behavior
 

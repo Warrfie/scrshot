@@ -30,7 +30,7 @@ rm -f "$CERTIFICATE_PATH"
 if [[ -n "$CODE_SIGN_IDENTITY_VALUE" ]]; then
   if ! security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -F "$CODE_SIGN_IDENTITY_VALUE" > /dev/null; then
     echo "Expected code signing identity was not found in the temporary keychain." >&2
-    echo "Check MACOS_CODE_SIGN_IDENTITY, MACOS_CERTIFICATE_P12_BASE64, and that the exported .p12 includes the private key." >&2
+    echo "Check CODE_SIGN_IDENTITY_VALUE, MACOS_CERTIFICATE_P12_BASE64, and that the exported .p12 includes the private key." >&2
     exit 1
   fi
 elif ! security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -F "Developer ID Application:" > /dev/null; then

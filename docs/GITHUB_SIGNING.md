@@ -10,7 +10,6 @@ Create these secrets in `Settings > Secrets and variables > Actions > Repository
 | Secret | Notes |
 | --- | --- |
 | `APPLE_TEAM_ID` | Your Apple Developer Team ID. |
-| `MACOS_CODE_SIGN_IDENTITY` | Usually `Developer ID Application: Your Name (TEAMID)` for public downloads. |
 | `MACOS_CERTIFICATE_P12_BASE64` | Base64-encoded `.p12` signing certificate. |
 | `MACOS_CERTIFICATE_PASSWORD` | Password used when exporting the `.p12`. |
 | `ASC_API_KEY_ID` | App Store Connect API key ID. |
@@ -31,6 +30,8 @@ base64 -i certificate.p12 | pbcopy
 Paste the copied value into `MACOS_CERTIFICATE_P12_BASE64`.
 
 Use the export password as `MACOS_CERTIFICATE_PASSWORD`.
+
+The workflow resolves the `Developer ID Application` identity automatically from the imported temporary keychain, so no separate signing identity secret is required.
 
 ## App Store Connect API Key
 
@@ -61,14 +62,43 @@ Use `signed = true` for signed, notarized, and stapled artifacts.
 The signed flow performs:
 
 1. Import Developer ID certificate into a temporary keychain.
-2. Build the Release app with Developer ID signing.
-3. Create a DMG.
-4. Sign the DMG.
-5. Submit the DMG to Apple notarization with `notarytool`.
-6. Staple the notarization ticket to the DMG.
-7. Validate the stapled ticket.
-8. Run Gatekeeper assessment with `spctl`.
-9. Upload the DMG and SHA256 file as GitHub Actions artifacts.
+2. Resolve the Developer ID signing identity from that keychain.
+3. Build the Release app with Developer ID signing and a secure timestamp.
+4. Create a DMG.
+5. Sign the DMG with a secure timestamp.
+6. Submit the DMG to Apple notarization with `notarytool`.
+7. Staple the notarization ticket to the DMG.
+8. Validate the stapled ticket.
+9. Run `spctl` as a diagnostic-only Gatekeeper assessment.
+10. Upload the DMG and SHA256 file as GitHub Actions artifacts for CI/debug access.
+11. For tag builds, create or update the matching GitHub Release and attach the DMG and SHA256 file as public release assets.
+
+`spctl` can report `source=Insufficient Context` on GitHub-hosted runners even after successful notarization and stapling. The release gate is Apple notarization plus `stapler validate`; `spctl` is logged for diagnostics and does not fail the workflow when those checks succeed.
+
+## Public Downloads
+
+For tags matching `v*`, the workflow publishes these files to the matching GitHub Release:
+
+- `scrshot-<tag>.dmg`
+- `scrshot-<tag>.sha256`
+
+Use GitHub Releases for user-facing downloads:
+
+```text
+https://github.com/Warrfie/scrshot/releases
+```
+
+GitHub Actions artifacts are temporary CI/debug artifacts with limited retention. They are not intended as the primary distribution channel for users.
+
+## Manual Builds
+
+Manual workflow runs are useful for testing the signed pipeline before creating a release tag:
+
+1. Open `Actions > Release Artifacts > Run workflow`.
+2. Set `signed = true`.
+3. Download the resulting workflow artifact from the run page.
+
+Manual runs do not create a GitHub Release asset unless the workflow is running for a `v*` tag.
 
 ## Local Signed Build
 
