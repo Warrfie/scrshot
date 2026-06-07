@@ -129,7 +129,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
     }
 
     func applyTextFontSize(_ fontSize: CGFloat) {
-        activeTextFontSize = min(max(fontSize, 12), 96)
+        activeTextFontSize = min(max(fontSize, 12), 192)
         if document.selectedAnnotation?.kind == .text {
             document.performUndoableChange(actionName: "Change Text Size") {
                 document.updateSelectedTextFontSize(activeTextFontSize)
@@ -668,7 +668,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             case .highlight:
                 document.performUndoableChange(actionName: "Add Filled Rectangle") {
                     var annotation = ScreenshotEditorAnnotation.highlight(rect, color: activeColor, fillOpacity: 1)
-                    annotation.strokeWidth = activeArrowStrokeWidth
+                    annotation.strokeWidth = 0
                     document.addAnnotation(annotation)
                 }
             case .blur:
@@ -876,7 +876,7 @@ final class ScreenshotEditorCanvasView: NSView, NSTextViewDelegate {
             switch activeRectangleMode {
             case .highlight:
                 var annotation = ScreenshotEditorAnnotation.highlight(rect, color: activeColor, fillOpacity: 1)
-                annotation.strokeWidth = activeArrowStrokeWidth
+                annotation.strokeWidth = 0
                 return annotation
             case .blur:
                 return .obscure(rect, style: .blur)

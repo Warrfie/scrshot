@@ -23,6 +23,8 @@ struct ScrshotApp: App {
         Window("About scrshot", id: AppSceneID.about) {
             AboutSceneView(versionTitle: statusItemController.versionMenuTitle)
         }
+        .defaultSize(width: 300, height: 260)
+        .windowResizability(.contentSize)
     }
 }
 
@@ -243,7 +245,7 @@ private struct AboutSceneView: View {
         VStack(spacing: 16) {
             Image(nsImage: appIconImage)
                 .resizable()
-                .frame(width: 72, height: 72)
+                .frame(width: 56, height: 56)
 
             VStack(spacing: 6) {
                 Text("scrshot")
@@ -258,15 +260,11 @@ private struct AboutSceneView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            HStack(spacing: 10) {
-                Link("GitHub", destination: URL(string: "https://github.com/Warrfie/scrshot")!)
-                Button("Close") {
-                    NSApp.keyWindow?.close()
-                }
-            }
+            Link("GitHub", destination: URL(string: "https://github.com/Warrfie/scrshot")!)
         }
-        .padding(24)
-        .frame(width: 360)
+        .padding(20)
+        .frame(width: 300)
+        .background(AboutWindowConfigurator())
     }
 
     private var appIconImage: NSImage {
@@ -275,6 +273,31 @@ private struct AboutSceneView: View {
             return iconImage
         }
         return NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
+    }
+}
+
+private struct AboutWindowConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async {
+            configure(window: view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            configure(window: nsView.window)
+        }
+    }
+
+    private func configure(window: NSWindow?) {
+        guard let window else { return }
+        window.level = .floating
+        window.hidesOnDeactivate = false
+        window.collectionBehavior.insert(.canJoinAllSpaces)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

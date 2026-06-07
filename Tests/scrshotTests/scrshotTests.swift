@@ -306,7 +306,7 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         document.updateSelectedTextAlignment(.right)
         document.updateSelectedTextBackground(false)
 
-        XCTAssertEqual(document.selectedAnnotation?.fontSize, 96)
+        XCTAssertEqual(document.selectedAnnotation?.fontSize, 192)
         XCTAssertEqual(document.selectedAnnotation?.textAlignment, .right)
         XCTAssertEqual(document.selectedAnnotation?.showsTextBackground, false)
     }
@@ -381,7 +381,7 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
 
         XCTAssertEqual(document.selectedAnnotation?.kind, .highlight)
         XCTAssertEqual(document.selectedAnnotation?.fillOpacity, 1)
-        XCTAssertEqual(document.selectedAnnotation?.strokeWidth, 5)
+        XCTAssertEqual(document.selectedAnnotation?.strokeWidth, 0)
     }
 
     func testRectangleModeCanSwitchBlurBackToOutlineWithZeroStroke() {

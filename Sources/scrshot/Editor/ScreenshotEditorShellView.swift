@@ -35,6 +35,11 @@ struct ScreenshotEditorShellView: View {
 
             VStack(spacing: 10) {
                 ScreenshotEditorToolbarView(viewModel: viewModel)
+                    .overlay(alignment: .bottom) {
+                        Divider()
+                            .opacity(0.55)
+                            .offset(y: 5)
+                    }
 
                 canvasContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

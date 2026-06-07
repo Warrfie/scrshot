@@ -10,6 +10,7 @@ private let textAlignmentOptions: [(alignment: NSTextAlignment, symbol: String, 
 private enum EditorToolbarMetrics {
     static let standardControlSize: CGFloat = 40
     static let standardIconSize: CGFloat = 17
+    static let buttonSpacing: CGFloat = 2
     static let doneButtonWidth: CGFloat = standardControlSize * 2 / 1.5
     static let doneButtonHeight: CGFloat = standardControlSize / 1.5
 }
@@ -18,8 +19,9 @@ struct ScreenshotEditorToolbarView: View {
     @ObservedObject var viewModel: ScreenshotEditorShellViewModel
 
     var body: some View {
-        HStack(alignment: .center, spacing: 30) {
+        HStack(alignment: .center, spacing: 16) {
             ScreenshotEditorWindowTrafficLightsView(viewModel: viewModel)
+            EditorToolbarSeparator()
             ScreenshotEditorTitlebarLeadingControlsView(viewModel: viewModel)
             Spacer(minLength: 12)
             ScreenshotEditorTitlebarTrailingControlsView(viewModel: viewModel)
@@ -97,12 +99,15 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             toolStrip
-            currentInspectorPanel
+            if viewModel.inspectorKind != .none {
+                EditorToolbarSeparator()
+                currentInspectorPanel
+            }
         }
     }
 
     private var toolStrip: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: EditorToolbarMetrics.buttonSpacing) {
             ForEach(ScreenshotEditorTool.allCases, id: \.self) { tool in
                 Button {
                     viewModel.selectTool(tool)
@@ -145,7 +150,7 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
     }
 
     private var cropInspectorPanel: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: EditorToolbarMetrics.buttonSpacing) {
             Button(action: { viewModel.fit() }) {
                 ZStack {
                     Rectangle()
@@ -163,14 +168,14 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
     }
 
     private var arrowInspectorPanel: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: EditorToolbarMetrics.buttonSpacing) {
             annotationColorSection
             strokeWidthSection()
         }
     }
 
     private var lineInspectorPanel: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: EditorToolbarMetrics.buttonSpacing) {
             annotationColorSection
             strokeWidthSection()
             lineStyleSection
@@ -178,17 +183,19 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
     }
 
     private var rectangleInspectorPanel: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: EditorToolbarMetrics.buttonSpacing) {
             rectangleModeSection
             if viewModel.rectangleMode != .blur {
                 rectangleColorSection
+            }
+            if viewModel.rectangleMode == .outline {
                 strokeWidthSection(minValue: 0)
             }
         }
     }
 
     private var detailInspectorPanel: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: EditorToolbarMetrics.buttonSpacing) {
             annotationColorSection
             strokeWidthSection(minValue: 0)
             detailShapeSection
@@ -196,7 +203,7 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
     }
 
     private var textInspectorPanel: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: EditorToolbarMetrics.buttonSpacing) {
             annotationColorSection
             textSizeSection
             textAlignmentSection
@@ -229,7 +236,7 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
 
     private var detailShapeSection: some View {
         inspectorSection(isWideControl: true) {
-            HStack(spacing: 0) {
+            HStack(spacing: EditorToolbarMetrics.buttonSpacing) {
                 ForEach(ScreenshotDetailShape.allCases, id: \.self) { shape in
                     Button {
                         viewModel.setDetailShape(shape)
@@ -259,7 +266,7 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
 
     private var lineStyleSection: some View {
         inspectorSection(isWideControl: true) {
-            HStack(spacing: 0) {
+            HStack(spacing: EditorToolbarMetrics.buttonSpacing) {
                 ForEach(ScreenshotLineStyle.allCases, id: \.self) { style in
                     Button {
                         viewModel.setLineStyle(style)
@@ -289,7 +296,7 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
 
     private var rectangleModeSection: some View {
         inspectorSection(isWideControl: true) {
-            HStack(spacing: 0) {
+            HStack(spacing: EditorToolbarMetrics.buttonSpacing) {
                 ForEach(ScreenshotRectangleToolMode.allCases, id: \.self) { mode in
                     Button {
                         viewModel.setRectangleMode(mode)
@@ -335,7 +342,7 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
                     get: { viewModel.textSize },
                     set: { viewModel.setTextSize($0) }
                 ),
-                in: 12...96
+                in: 12...192
             )
             .frame(width: 120)
         }
@@ -343,7 +350,7 @@ struct ScreenshotEditorTitlebarLeadingControlsView: View {
 
     private var textAlignmentSection: some View {
         inspectorSection(isWideControl: true) {
-            HStack(spacing: 0) {
+            HStack(spacing: EditorToolbarMetrics.buttonSpacing) {
                 ForEach(textAlignmentOptions, id: \.alignment) { option in
                     Button {
                         viewModel.setTextAlignment(option.alignment)
@@ -497,6 +504,15 @@ private final class InspectorColorPanelController: NSObject {
     @objc
     private func colorChanged(_ sender: NSColorPanel) {
         onChange?(sender.color)
+    }
+}
+
+private struct EditorToolbarSeparator: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.16))
+            .frame(width: 1, height: 24)
+            .padding(.vertical, 8)
     }
 }
 

@@ -175,6 +175,14 @@ final class PreferencesViewModel: ObservableObject {
         }
     }
 
+    var needsScreenCaptureAccess: Bool {
+        !permissionSnapshot.screenCaptureGranted
+    }
+
+    var needsMicrophoneAccess: Bool {
+        permissionSnapshot.microphoneStatus != .authorized
+    }
+
     func updateSaveDirectory(_ url: URL) {
         preferences.saveDirectoryURL = url
         objectWillChange.send()
@@ -200,6 +208,24 @@ final class PreferencesViewModel: ObservableObject {
 
     func openMicrophoneSettings() {
         openPrivacyPane(anchor: "Privacy_Microphone")
+    }
+
+    func requestScreenRecordingAccess() {
+        _ = ScreenCapturePermissionController.shared.requestAccessIfNeeded()
+        refreshPermissionStatus()
+        if needsScreenCaptureAccess {
+            openScreenRecordingSettings()
+        }
+    }
+
+    func requestMicrophoneAccess() {
+        Task { @MainActor in
+            _ = await MicrophonePermissionController.shared.requestAccessIfNeeded()
+            refreshPermissionStatus()
+            if needsMicrophoneAccess {
+                openMicrophoneSettings()
+            }
+        }
     }
 
     private func openPrivacyPane(anchor: String) {
@@ -346,25 +372,19 @@ struct PreferencesRootView: View {
                             title: "Screen Recording",
                             value: viewModel.screenCaptureSummary,
                             color: viewModel.screenCaptureColor,
-                            actionTitle: "Open Settings",
-                            action: viewModel.openScreenRecordingSettings
+                            showsRequestAction: viewModel.needsScreenCaptureAccess,
+                            requestAction: viewModel.requestScreenRecordingAccess,
+                            settingsAction: viewModel.openScreenRecordingSettings
                         )
 
                         permissionRow(
                             title: "Microphone",
                             value: viewModel.microphoneSummary,
                             color: viewModel.microphoneColor,
-                            actionTitle: "Open Settings",
-                            action: viewModel.openMicrophoneSettings
+                            showsRequestAction: viewModel.needsMicrophoneAccess,
+                            requestAction: viewModel.requestMicrophoneAccess,
+                            settingsAction: viewModel.openMicrophoneSettings
                         )
-
-                        HStack(spacing: 10) {
-                            Button("Refresh") {
-                                viewModel.refreshPermissionStatus()
-                            }
-                            Text("Refresh checks the current macOS permission state.")
-                                .foregroundStyle(.secondary)
-                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -401,8 +421,9 @@ struct PreferencesRootView: View {
         title: String,
         value: String,
         color: Color,
-        actionTitle: String,
-        action: @escaping () -> Void
+        showsRequestAction: Bool,
+        requestAction: @escaping () -> Void,
+        settingsAction: @escaping () -> Void
     ) -> some View {
         HStack {
             Text(title)
@@ -410,7 +431,10 @@ struct PreferencesRootView: View {
             Text(value)
                 .foregroundStyle(color)
                 .frame(width: 140, alignment: .leading)
-            Button(actionTitle, action: action)
+            if showsRequestAction {
+                Button("Request Access", action: requestAction)
+            }
+            Button("Open Settings", action: settingsAction)
         }
     }
 

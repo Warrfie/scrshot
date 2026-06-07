@@ -103,7 +103,7 @@ final class ScreenshotEditorDocument {
     func updateSelectedTextFontSize(_ fontSize: CGFloat) {
         guard let index = selectedIndex else { return }
         guard annotations[index].kind == .text else { return }
-        annotations[index].fontSize = min(max(fontSize, 12), 96)
+        annotations[index].fontSize = min(max(fontSize, 12), 192)
     }
 
     func updateSelectedTextAlignment(_ alignment: NSTextAlignment) {
@@ -142,13 +142,16 @@ final class ScreenshotEditorDocument {
             annotations[index] = annotation.asHighlight(
                 color: annotation.kind == .obscure ? defaultColor : annotation.color,
                 fillOpacity: 1,
-                strokeWidth: annotation.kind == .obscure ? min(max(defaultStrokeWidth, 0), 24) : annotation.strokeWidth
+                strokeWidth: 0
             )
         case .outline:
+            let strokeWidth = annotation.kind == .obscure || annotation.strokeWidth <= 0
+                ? min(max(defaultStrokeWidth, 0), 24)
+                : annotation.strokeWidth
             annotations[index] = annotation.asHighlight(
                 color: annotation.kind == .obscure ? defaultColor : annotation.color,
                 fillOpacity: 0,
-                strokeWidth: annotation.kind == .obscure ? min(max(defaultStrokeWidth, 0), 24) : annotation.strokeWidth
+                strokeWidth: strokeWidth
             )
         }
     }

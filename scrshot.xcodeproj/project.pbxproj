@@ -478,6 +478,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = scrshot;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "scrshot uses the microphone only when you choose a recording mode that captures microphone audio.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -510,6 +511,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = scrshot;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "scrshot uses the microphone only when you choose a recording mode that captures microphone audio.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

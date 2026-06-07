@@ -117,6 +117,7 @@ final class ScreenshotEditorWindowController: NSWindowController, NSWindowDelega
     }
 
     func windowWillClose(_ notification: Notification) {
+        dismissAuxiliaryPanels()
         guard onComplete != nil else { return }
         let completion = onComplete
         onComplete = nil
@@ -126,8 +127,13 @@ final class ScreenshotEditorWindowController: NSWindowController, NSWindowDelega
     private func finish(with image: CGImage?) {
         let completion = onComplete
         onComplete = nil
+        dismissAuxiliaryPanels()
         window?.close()
         completion?(image)
+    }
+
+    private func dismissAuxiliaryPanels() {
+        NSColorPanel.shared.orderOut(nil)
     }
 
 }
