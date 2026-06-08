@@ -173,7 +173,7 @@ final class ScreenCaptureServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testEnsurePermissionsForCaptureRequestsPromptAndOpensSystemSettingsWhenConfirmed() {
+    func testEnsurePermissionsForCaptureRequestsPromptWithoutOpeningSystemSettingsOnFirstAttempt() {
         var requestCount = 0
         let screenCapturePermissionController = ScreenCapturePermissionController(
             preflightAccess: { false },
@@ -202,6 +202,39 @@ final class ScreenCaptureServiceTests: XCTestCase {
 
         XCTAssertFalse(granted)
         XCTAssertEqual(requestCount, 1)
+        XCTAssertTrue(openedAnchors.isEmpty)
+    }
+
+    @MainActor
+    func testEnsurePermissionsForCaptureOpensSystemSettingsWhenAlreadyPromptedAndConfirmed() {
+        var requestCount = 0
+        let screenCapturePermissionController = ScreenCapturePermissionController(
+            preflightAccess: { false },
+            requestAccess: {
+                requestCount += 1
+                return false
+            },
+            activateApp: {}
+        )
+        _ = screenCapturePermissionController.requestAccessIfNeeded()
+
+        var openedAnchors: [String] = []
+        let coordinator = AppPermissionCoordinator(
+            screenCapturePermissionController: screenCapturePermissionController,
+            microphonePermissionController: MicrophonePermissionController(
+                authorizationStatusProvider: { .authorized },
+                requestAccess: { true },
+                activateApp: {}
+            ),
+            openPrivacyPane: { openedAnchors.append($0) },
+            confirmOpenPrivacyPane: { permissionKind in
+                XCTAssertEqual(permissionKind, .screenCapture)
+                return true
+            }
+        )
+
+        XCTAssertFalse(coordinator.ensurePermissionsForCapture())
+        XCTAssertEqual(requestCount, 1)
         XCTAssertEqual(openedAnchors, ["Privacy_ScreenCapture"])
     }
 
@@ -212,6 +245,8 @@ final class ScreenCaptureServiceTests: XCTestCase {
             requestAccess: { false },
             activateApp: {}
         )
+        _ = screenCapturePermissionController.requestAccessIfNeeded()
+
         var openedAnchors: [String] = []
         let coordinator = AppPermissionCoordinator(
             screenCapturePermissionController: screenCapturePermissionController,
@@ -279,7 +314,7 @@ final class ScreenCaptureServiceTests: XCTestCase {
         let granted = await coordinator.ensurePermissionsForRecording(audioSource: .systemAudio)
         XCTAssertFalse(granted)
         XCTAssertEqual(requestCount, 1)
-        XCTAssertEqual(openedAnchors, ["Privacy_ScreenCapture"])
+        XCTAssertTrue(openedAnchors.isEmpty)
     }
 }
 

@@ -207,9 +207,13 @@ final class AppPermissionCoordinator {
         if screenCapturePermissionController.hasAccess {
             return true
         }
+        let hadRequestedScreenCapturePrompt = screenCapturePermissionController.hasRequestedSystemPrompt
         _ = screenCapturePermissionController.requestAccessIfNeeded()
         if screenCapturePermissionController.hasAccess {
             return true
+        }
+        if !hadRequestedScreenCapturePrompt && screenCapturePermissionController.hasRequestedSystemPrompt {
+            return false
         }
         openPrivacyPaneIfConfirmed(.screenCapture)
         return false
@@ -217,9 +221,13 @@ final class AppPermissionCoordinator {
 
     func ensurePermissionsForRecording(audioSource: AppPreferences.RecordingAudioSource) async -> Bool {
         if !screenCapturePermissionController.hasAccess {
+            let hadRequestedScreenCapturePrompt = screenCapturePermissionController.hasRequestedSystemPrompt
             _ = screenCapturePermissionController.requestAccessIfNeeded()
             if screenCapturePermissionController.hasAccess {
                 return true
+            }
+            if !hadRequestedScreenCapturePrompt && screenCapturePermissionController.hasRequestedSystemPrompt {
+                return false
             }
             openPrivacyPaneIfConfirmed(.screenCapture)
             return false
@@ -229,12 +237,19 @@ final class AppPermissionCoordinator {
         if microphonePermissionController.hasAccess {
             return true
         }
-        let didPrompt = await microphonePermissionController.requestAccessIfNeeded()
-        if !didPrompt && !microphonePermissionController.hasAccess {
+        let hadRequestedMicrophonePrompt = microphonePermissionController.hasRequestedSystemPrompt
+        _ = await microphonePermissionController.requestAccessIfNeeded()
+        if microphonePermissionController.hasAccess {
+            return true
+        }
+        if !hadRequestedMicrophonePrompt && microphonePermissionController.hasRequestedSystemPrompt {
+            return false
+        }
+        if !microphonePermissionController.hasAccess {
             openPrivacyPaneIfConfirmed(.microphone)
             return false
         }
-        return microphonePermissionController.hasAccess
+        return true
     }
 
     private func openPrivacyPaneIfConfirmed(_ permissionKind: PermissionKind) {
