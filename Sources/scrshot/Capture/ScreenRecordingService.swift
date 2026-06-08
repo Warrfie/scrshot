@@ -170,6 +170,8 @@ private final class NativeRecordingSession: NSObject {
     private let onStateChanged: (Bool) -> Void
     private var stream: SCStream?
     private var recordingOutput: SCRecordingOutput?
+    private var sampleSink: NativeRecordingSampleSink?
+    private var sampleSinkOutputTypes: [SCStreamOutputType] = []
     private var startContinuation: CheckedContinuation<URL, Error>?
     private var finishContinuation: CheckedContinuation<URL, Error>?
     private var pendingError: Error?
@@ -211,8 +213,19 @@ private final class NativeRecordingSession: NSObject {
         recordingConfiguration.outputFileType = fileFormat.fileType
 
         let recordingOutput = SCRecordingOutput(configuration: recordingConfiguration, delegate: self)
+        let sampleSink = NativeRecordingSampleSink()
+        var sampleSinkOutputTypes: [SCStreamOutputType] = [.screen]
+        if audioSource.capturesSystemAudio {
+            sampleSinkOutputTypes.append(.audio)
+        }
+        if audioSource.capturesMicrophone {
+            sampleSinkOutputTypes.append(.microphone)
+        }
 
         do {
+            for outputType in sampleSinkOutputTypes {
+                try stream.addStreamOutput(sampleSink, type: outputType, sampleHandlerQueue: .main)
+            }
             try stream.addRecordingOutput(recordingOutput)
             try await stream.startCapture()
         } catch {
@@ -223,6 +236,8 @@ private final class NativeRecordingSession: NSObject {
 
         self.stream = stream
         self.recordingOutput = recordingOutput
+        self.sampleSink = sampleSink
+        self.sampleSinkOutputTypes = sampleSinkOutputTypes
 
         return try await withCheckedThrowingContinuation { continuation in
             startContinuation = continuation
@@ -270,8 +285,15 @@ private final class NativeRecordingSession: NSObject {
     }
 
     private func teardown() {
+        if let stream, let sampleSink {
+            for outputType in sampleSinkOutputTypes {
+                try? stream.removeStreamOutput(sampleSink, type: outputType)
+            }
+        }
         stream = nil
         recordingOutput = nil
+        sampleSink = nil
+        sampleSinkOutputTypes = []
         isStoppingCapture = false
     }
 
@@ -284,6 +306,17 @@ private final class NativeRecordingSession: NSObject {
         } catch {
             AppLogger.shared.error(.screenRecordingService, "native stream cleanup after external stop failed: \(error.localizedDescription)")
         }
+    }
+}
+
+@available(macOS 15.0, *)
+private final class NativeRecordingSampleSink: NSObject, SCStreamOutput {
+    nonisolated func stream(
+        _ stream: SCStream,
+        didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
+        of outputType: SCStreamOutputType
+    ) {
+        // SCRecordingOutput writes the movie. This sink only keeps ScreenCaptureKit outputs attached.
     }
 }
 
