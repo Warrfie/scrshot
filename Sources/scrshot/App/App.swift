@@ -150,20 +150,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
 
-        switch presentRunningInstanceAlert() {
-        case .alertFirstButtonReturn:
-            remainingApps.forEach { $0.forceTerminate() }
-            let stillRunningApps = waitForRunningApplicationsToTerminate(remainingApps)
-            if stillRunningApps.isEmpty {
-                return false
-            }
-            presentUnableToTerminateAlert()
-            NSApp.terminate(nil)
-            return true
-        default:
-            NSApp.terminate(nil)
-            return true
-        }
+        presentRunningInstanceAlert()
+        NSApp.terminate(nil)
+        return true
     }
 
     private func waitForRunningApplicationsToTerminate(_ applications: [NSRunningApplication]) -> [NSRunningApplication] {
@@ -178,24 +167,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return applications.filter { !$0.isTerminated }
     }
 
-    private func presentRunningInstanceAlert() -> NSApplication.ModalResponse {
+    private func presentRunningInstanceAlert() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Another copy of scrshot is already running."
-        alert.informativeText = "scrshot tried to close the existing copy, but it did not quit. You can force quit the existing process and start this copy, or cancel this launch."
-        alert.addButton(withTitle: "Kill Process and Start")
-        alert.addButton(withTitle: "Cancel")
-        return alert.runModal()
-    }
-
-    private func presentUnableToTerminateAlert() {
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.alertStyle = .critical
-        alert.messageText = "scrshot could not close the existing copy."
-        alert.informativeText = "Quit the other copy manually, then start scrshot again."
-        alert.addButton(withTitle: "OK")
+        alert.informativeText = "scrshot tried to close the existing copy, but it did not quit. Quit the existing copy manually, then start scrshot again."
+        alert.addButton(withTitle: "Quit")
         alert.runModal()
     }
 
@@ -429,9 +407,6 @@ final class AppCoordinator {
 
         do {
             let capturedDisplay = try screenCaptureService.captureCurrentDisplay()
-            if let captureURL = screenCaptureService.lastCaptureURL {
-                AppLogger.shared.debug(.appCoordinator, "using raw capture file: \(captureURL.path)")
-            }
             _ = captureSoundPlayer.playCaptureSoundIfEnabled(preferences: preferences)
             openEditor(with: capturedDisplay.image, preferredDisplayID: capturedDisplay.displayID)
         } catch {

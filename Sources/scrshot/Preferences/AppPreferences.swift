@@ -254,14 +254,14 @@ final class AppPreferences {
 
     var saveDirectoryURL: URL {
         get {
-            let path = resolvedSaveDirectoryURL()?.path ?? defaults.string(forKey: Keys.saveDirectoryPath) ?? Self.defaultSaveDirectoryURL.path
-            return URL(fileURLWithPath: path, isDirectory: true)
+            resolvedSaveDirectoryURL() ?? Self.defaultSaveDirectoryURL
         }
         set {
             do {
                 try updateSaveDirectory(newValue)
             } catch {
-                storeSaveDirectoryPathOnly(newValue)
+                AppLogger.shared.error(.preferences, "failed to update save directory bookmark: \(error.localizedDescription)")
+                notifyChange()
             }
         }
     }
@@ -428,12 +428,6 @@ final class AppPreferences {
 
     private func notifyChange() {
         NotificationCenter.default.post(name: .appPreferencesDidChange, object: self)
-    }
-
-    private func storeSaveDirectoryPathOnly(_ url: URL) {
-        defaults.removeObject(forKey: Keys.saveDirectoryBookmark)
-        defaults.set(url.path, forKey: Keys.saveDirectoryPath)
-        notifyChange()
     }
 
     private func resolvedSaveDirectoryURL() -> URL? {

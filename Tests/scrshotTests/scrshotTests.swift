@@ -157,7 +157,11 @@ final class ScreenCaptureServiceTests: XCTestCase {
         let coordinator = AppPermissionCoordinator(
             screenCapturePermissionController: screenCapturePermissionController,
             microphonePermissionController: microphonePermissionController,
-            openPrivacyPane: { openedAnchors.append($0) }
+            openPrivacyPane: { openedAnchors.append($0) },
+            confirmOpenPrivacyPane: { _ in
+                XCTFail("Should not ask to open System Settings during launch diagnostics")
+                return false
+            }
         )
 
         coordinator.logStatusOnLaunch(recordingAudioSource: .systemAudioAndMicrophone)
@@ -169,7 +173,7 @@ final class ScreenCaptureServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testEnsurePermissionsForCaptureRequestsPromptAndOpensSystemSettingsWhenStillDenied() {
+    func testEnsurePermissionsForCaptureRequestsPromptAndOpensSystemSettingsWhenConfirmed() {
         var requestCount = 0
         let screenCapturePermissionController = ScreenCapturePermissionController(
             preflightAccess: { false },
@@ -187,7 +191,11 @@ final class ScreenCaptureServiceTests: XCTestCase {
                 requestAccess: { true },
                 activateApp: {}
             ),
-            openPrivacyPane: { openedAnchors.append($0) }
+            openPrivacyPane: { openedAnchors.append($0) },
+            confirmOpenPrivacyPane: { permissionKind in
+                XCTAssertEqual(permissionKind, .screenCapture)
+                return true
+            }
         )
 
         let granted = coordinator.ensurePermissionsForCapture()
@@ -195,6 +203,29 @@ final class ScreenCaptureServiceTests: XCTestCase {
         XCTAssertFalse(granted)
         XCTAssertEqual(requestCount, 1)
         XCTAssertEqual(openedAnchors, ["Privacy_ScreenCapture"])
+    }
+
+    @MainActor
+    func testEnsurePermissionsForCaptureDoesNotOpenSystemSettingsWhenCancelled() {
+        let screenCapturePermissionController = ScreenCapturePermissionController(
+            preflightAccess: { false },
+            requestAccess: { false },
+            activateApp: {}
+        )
+        var openedAnchors: [String] = []
+        let coordinator = AppPermissionCoordinator(
+            screenCapturePermissionController: screenCapturePermissionController,
+            microphonePermissionController: MicrophonePermissionController(
+                authorizationStatusProvider: { .authorized },
+                requestAccess: { true },
+                activateApp: {}
+            ),
+            openPrivacyPane: { openedAnchors.append($0) },
+            confirmOpenPrivacyPane: { _ in false }
+        )
+
+        XCTAssertFalse(coordinator.ensurePermissionsForCapture())
+        XCTAssertTrue(openedAnchors.isEmpty)
     }
 
     @MainActor
@@ -210,7 +241,11 @@ final class ScreenCaptureServiceTests: XCTestCase {
                 requestAccess: { true },
                 activateApp: {}
             ),
-            openPrivacyPane: { _ in XCTFail("Should not open System Settings when permission is already granted") }
+            openPrivacyPane: { _ in XCTFail("Should not open System Settings when permission is already granted") },
+            confirmOpenPrivacyPane: { _ in
+                XCTFail("Should not ask to open System Settings when permission is already granted")
+                return false
+            }
         )
 
         XCTAssertTrue(coordinator.ensurePermissionsForCapture())
@@ -234,7 +269,11 @@ final class ScreenCaptureServiceTests: XCTestCase {
                 requestAccess: { true },
                 activateApp: {}
             ),
-            openPrivacyPane: { openedAnchors.append($0) }
+            openPrivacyPane: { openedAnchors.append($0) },
+            confirmOpenPrivacyPane: { permissionKind in
+                XCTAssertEqual(permissionKind, .screenCapture)
+                return true
+            }
         )
 
         let granted = await coordinator.ensurePermissionsForRecording(audioSource: .systemAudio)
@@ -1034,16 +1073,6 @@ final class HotkeyManagerTests: XCTestCase {
                     ]
                 case "com.warrfie.scrshot":
                     return [.init(processIdentifier: 333, bundleIdentifier: "com.warrfie.scrshot")]
-                case nil:
-                    return [
-                        .init(
-                            processIdentifier: 222,
-                            bundleIdentifier: "io.github.Warrfie.scrshot",
-                            bundlePath: "/Applications/scrshot.app",
-                            executablePath: "/Applications/scrshot.app/Contents/MacOS/scrshot",
-                            localizedName: "scrshot"
-                        )
-                    ]
                 default:
                     return []
                 }

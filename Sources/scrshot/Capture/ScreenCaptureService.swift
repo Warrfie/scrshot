@@ -2,9 +2,7 @@ import AppKit
 import AVFoundation
 import CoreGraphics
 import Foundation
-import ImageIO
 import ScreenCaptureKit
-import UniformTypeIdentifiers
 
 final class ScreenCapturePermissionController {
     static let shared = ScreenCapturePermissionController()
@@ -94,11 +92,7 @@ final class MicrophonePermissionController {
 }
 
 final class ScreenCaptureService {
-    private(set) var lastCaptureURL: URL?
     private let permissionController: ScreenCapturePermissionController
-    private var cacheContainerName: String {
-        Bundle.main.bundleIdentifier ?? "scrshot"
-    }
 
     init(permissionController: ScreenCapturePermissionController = .shared) {
         self.permissionController = permissionController
@@ -138,89 +132,9 @@ final class ScreenCaptureService {
         AppLogger.shared.debug(.screenCaptureService, message)
     }
 
-    private func saveDebugImage(_ image: CGImage, named name: String) {
-#if DEBUG
-        guard let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-            return
-        }
-        let debugDirectory = cachesDirectory
-            .appendingPathComponent(cacheContainerName, isDirectory: true)
-            .appendingPathComponent("DebugCaptures", isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: debugDirectory, withIntermediateDirectories: true)
-            let fileURL = debugDirectory.appendingPathComponent(name).appendingPathExtension("png")
-            guard let destination = CGImageDestinationCreateWithURL(fileURL as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-                return
-            }
-            CGImageDestinationAddImage(destination, image, nil)
-            if CGImageDestinationFinalize(destination) {
-                debugLog("debug image saved at \(fileURL.path)")
-            }
-        } catch {
-            debugLog("failed saving debug image \(name): \(error.localizedDescription)")
-        }
-#endif
-    }
-
-    private func logVisibleWindowDiagnostics() {
-#if DEBUG
-        let frontmostApp = NSWorkspace.shared.frontmostApplication
-        let frontmostName = frontmostApp?.localizedName ?? "nil"
-        let frontmostBundleID = frontmostApp?.bundleIdentifier ?? "nil"
-        debugLog("frontmost app name=\(frontmostName) bundleID=\(frontmostBundleID)")
-
-        guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
-            debugLog("CGWindowListCopyWindowInfo returned nil")
-            return
-        }
-
-        let interestingWindows = windowInfo.prefix(12).map { info -> String in
-            let owner = info[kCGWindowOwnerName as String] as? String ?? "unknown-owner"
-            let title = info[kCGWindowName as String] as? String ?? "untitled"
-            let layer = info[kCGWindowLayer as String] as? Int ?? -1
-            let bounds = info[kCGWindowBounds as String] as? [String: Any] ?? [:]
-            return "\(owner)::\(title) layer=\(layer) bounds=\(bounds)"
-        }.joined(separator: " | ")
-        debugLog("visible CG windows count=\(windowInfo.count) [\(interestingWindows)]")
-#endif
-    }
-
-    private func logImageDiagnostics(_ image: CGImage, label: String) {
-#if DEBUG
-        guard let providerData = image.dataProvider?.data,
-              let data = CFDataGetBytePtr(providerData) else {
-            debugLog("\(label) image diagnostics unavailable; no provider data")
-            return
-        }
-
-        let width = image.width
-        let height = image.height
-        let bytesPerRow = image.bytesPerRow
-        let samplePoints = [
-            (x: 0, y: 0),
-            (x: max(width / 2, 0), y: max(height / 2, 0)),
-            (x: max(width - 1, 0), y: max(height - 1, 0)),
-            (x: max(width / 3, 0), y: max(height / 3, 0)),
-            (x: max((width * 2) / 3, 0), y: max((height * 2) / 3, 0))
-        ]
-
-        let pixels = samplePoints.map { point -> String in
-            let offset = point.y * bytesPerRow + point.x * 4
-            let b = data[offset]
-            let g = data[offset + 1]
-            let r = data[offset + 2]
-            let a = data[offset + 3]
-            return "(\(point.x),\(point.y))=\(r),\(g),\(b),\(a)"
-        }.joined(separator: " | ")
-
-        debugLog("\(label) sample pixels [\(pixels)]")
-#endif
-    }
-
     func captureCurrentDisplay() throws -> CapturedScreen {
         let hasPermission = permissionController.hasAccess
         debugLog("captureCurrentDisplay start; preflight=\(hasPermission)")
-        logVisibleWindowDiagnostics()
 
         guard hasPermission else {
             let requestResult = permissionController.requestAccessIfNeeded()
@@ -323,23 +237,8 @@ final class ScreenCaptureService {
             return capturedScreen
         }
 
-        guard let selection = selectedScreenForCapture(),
-              let compositeImage = captureScreenImageWithScreencapture(screen: selection.screen, displayIndex: selection.displayIndex) else {
-            log("all capture backends returned nil")
-            return nil
-        }
-        guard let displayID = selection.screen.displayID else { return nil }
-
-        let frame = selection.screen.frame
-        let scaleX = CGFloat(compositeImage.width) / frame.width
-        let scaleY = CGFloat(compositeImage.height) / frame.height
-        return CapturedScreen(
-            displayID: displayID,
-            frame: frame,
-            image: compositeImage,
-            scaleX: scaleX,
-            scaleY: scaleY
-        )
+        log("ScreenCaptureKit backends returned nil")
+        return nil
     }
 
     @available(macOS 15.2, *)
@@ -372,8 +271,6 @@ final class ScreenCaptureService {
 
         let frame = selection.screen.frame
         debugLog("ScreenCaptureKit rect backend success image=\(image.width)x\(image.height)")
-        logImageDiagnostics(image, label: "ScreenCaptureKit rect backend")
-        saveDebugImage(image, named: "rect-backend")
         return CapturedScreen(
             displayID: displayID,
             frame: frame,
@@ -444,8 +341,6 @@ final class ScreenCaptureService {
 
         let frame = selection.screen.frame
         debugLog("ScreenCaptureKit display-filter backend success image=\(image.width)x\(image.height)")
-        logImageDiagnostics(image, label: "ScreenCaptureKit display-filter backend")
-        saveDebugImage(image, named: "display-filter-backend")
         let scaleX = CGFloat(image.width) / frame.width
         let scaleY = CGFloat(image.height) / frame.height
         return CapturedScreen(
@@ -455,87 +350,6 @@ final class ScreenCaptureService {
             scaleX: scaleX,
             scaleY: scaleY
         )
-    }
-
-    private func captureScreenImageWithScreencapture(screen: NSScreen, displayIndex: Int) -> CGImage? {
-        debugLog("fallback screencapture backend start displayIndex=\(displayIndex) frame=\(NSStringFromRect(screen.frame))")
-        let fileManager = FileManager.default
-        guard let cachesDirectory = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-            log("fallback screencapture backend: no caches directory")
-            return nil
-        }
-
-        let captureDirectory = cachesDirectory
-            .appendingPathComponent(cacheContainerName, isDirectory: true)
-            .appendingPathComponent("Captures", isDirectory: true)
-
-        do {
-            try fileManager.createDirectory(at: captureDirectory, withIntermediateDirectories: true)
-        } catch {
-            log("Failed to create capture cache directory: \(error.localizedDescription)")
-            return nil
-        }
-
-        let captureURL = captureDirectory
-            .appendingPathComponent("scrshot_capture_\(UUID().uuidString)")
-            .appendingPathExtension("png")
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        let errorPipe = Pipe()
-
-        process.arguments = [
-            "-x",
-            "-o",
-            "-t", "png",
-            "-D", "\(displayIndex)",
-            captureURL.path
-        ]
-        process.standardError = errorPipe
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            log("screencapture launch failed: \(error.localizedDescription)")
-            return nil
-        }
-
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-        if !errorData.isEmpty, let errorOutput = String(data: errorData, encoding: .utf8) {
-            log("screencapture stderr: \(errorOutput)")
-        }
-
-        guard process.terminationStatus == 0 else {
-            log("screencapture failed with status \(process.terminationStatus)")
-            return nil
-        }
-
-        guard waitForCaptureFile(at: captureURL, fileManager: fileManager),
-              let imageData = try? Data(contentsOf: captureURL),
-              !imageData.isEmpty,
-              let source = CGImageSourceCreateWithData(imageData as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-            log("screencapture did not produce a readable PNG")
-            return nil
-        }
-
-        lastCaptureURL = captureURL
-        debugLog("scrshot raw capture saved at: \(captureURL.path) image=\(image.width)x\(image.height)")
-        logImageDiagnostics(image, label: "screencapture fallback backend")
-        return image
-    }
-
-    private func waitForCaptureFile(at url: URL, fileManager: FileManager) -> Bool {
-        for _ in 0..<20 {
-            if let attributes = try? fileManager.attributesOfItem(atPath: url.path),
-               let fileSize = attributes[.size] as? NSNumber,
-               fileSize.intValue > 0 {
-                return true
-            }
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        return false
     }
 
     private func selectedScreenForCapture() -> (screen: NSScreen, displayIndex: Int)? {

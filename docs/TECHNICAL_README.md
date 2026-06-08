@@ -143,6 +143,13 @@ Defaults currently include:
 - recording audio source: `No Audio`
 - recording format: `MOV`
 
+Privacy posture:
+
+- capture permissions are requested from explicit user actions, not on launch
+- denied Screen Recording or Microphone access is followed by an app-owned explanation before opening System Settings
+- screenshots and recordings are local files; no network upload path exists in the current implementation
+- App Store Connect privacy labels should disclose user-driven screen capture, optional microphone capture, optional system audio capture, and local file storage
+
 ## Editor Model
 
 The editor implementation lives mainly in `ScreenshotEditorCanvasView.swift` and is split into two layers:

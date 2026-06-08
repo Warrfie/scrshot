@@ -120,6 +120,16 @@ You will need:
 - `System Audio Recording` permission if you choose a system-audio recording mode
 - `Microphone` permission if you choose a microphone-based recording mode
 
+### Privacy Labels
+
+For App Store Connect privacy labels, describe the app behavior as local user-driven capture:
+
+- screen content is captured only after the user starts a screenshot or recording
+- microphone audio is captured only when a microphone recording mode is selected
+- system audio is captured only when a system-audio recording mode is selected
+- screenshots and recordings are saved to a user-selected local folder
+- the app does not upload captures or audio to a server in the current implementation
+
 ## Installation
 
 ### Build in Xcode

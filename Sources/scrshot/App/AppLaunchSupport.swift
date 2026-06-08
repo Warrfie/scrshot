@@ -16,29 +16,17 @@ struct AppInstanceCoordinator {
         "io.github.Warrfie.scrshot",
         "com.warrfie.scrshot",
     ]
-    static let knownExecutableNames: Set<String> = [
-        "scrshot",
-    ]
 
     struct RunningApp: Equatable {
         let processIdentifier: pid_t
         let bundleIdentifier: String?
-        let bundlePath: String?
-        let executablePath: String?
-        let localizedName: String?
 
         init(
             processIdentifier: pid_t,
-            bundleIdentifier: String? = nil,
-            bundlePath: String? = nil,
-            executablePath: String? = nil,
-            localizedName: String? = nil
+            bundleIdentifier: String? = nil
         ) {
             self.processIdentifier = processIdentifier
             self.bundleIdentifier = bundleIdentifier
-            self.bundlePath = bundlePath
-            self.executablePath = executablePath
-            self.localizedName = localizedName
         }
     }
 
@@ -61,10 +49,7 @@ struct AppInstanceCoordinator {
             return applications.map {
                 RunningApp(
                     processIdentifier: $0.processIdentifier,
-                    bundleIdentifier: $0.bundleIdentifier,
-                    bundlePath: $0.bundleURL?.path,
-                    executablePath: $0.executableURL?.path,
-                    localizedName: $0.localizedName
+                    bundleIdentifier: $0.bundleIdentifier
                 )
             }
         }
@@ -86,33 +71,12 @@ struct AppInstanceCoordinator {
         }
         let bundleIdentifiers = Self.knownBundleIdentifiers.union([bundleIdentifier].compactMap { $0 })
         let bundleMatches = bundleIdentifiers.flatMap { runningApplicationsProvider($0) }
-        let nameMatches = runningApplicationsProvider(nil).filter(isKnownScrshotApplication)
 
         var seenProcessIdentifiers = Set<pid_t>()
-        return (bundleMatches + nameMatches)
+        return bundleMatches
             .map(\.processIdentifier)
             .filter { $0 != currentProcessIdentifier }
             .filter { seenProcessIdentifiers.insert($0).inserted }
-    }
-
-    private func isKnownScrshotApplication(_ app: RunningApp) -> Bool {
-        if let bundleIdentifier = app.bundleIdentifier,
-           Self.knownBundleIdentifiers.contains(bundleIdentifier) {
-            return true
-        }
-        if let executableName = app.executablePath.map({ URL(fileURLWithPath: $0).lastPathComponent }),
-           Self.knownExecutableNames.contains(executableName) {
-            return true
-        }
-        if let bundleName = app.bundlePath.map({ URL(fileURLWithPath: $0).lastPathComponent }),
-           ["scrshot.app"].contains(bundleName) {
-            return true
-        }
-        if let localizedName = app.localizedName,
-           Self.knownExecutableNames.contains(localizedName) {
-            return true
-        }
-        return false
     }
 }
 
@@ -159,6 +123,39 @@ final class AppPermissionCoordinator {
     private let screenCapturePermissionController: ScreenCapturePermissionController
     private let microphonePermissionController: MicrophonePermissionController
     private let openPrivacyPane: (String) -> Void
+    private let confirmOpenPrivacyPane: @MainActor (PermissionKind) -> Bool
+
+    enum PermissionKind {
+        case screenCapture
+        case microphone
+
+        var settingsAnchor: String {
+            switch self {
+            case .screenCapture:
+                return "Privacy_ScreenCapture"
+            case .microphone:
+                return "Privacy_Microphone"
+            }
+        }
+
+        var alertMessage: String {
+            switch self {
+            case .screenCapture:
+                return "Screen Recording access is required."
+            case .microphone:
+                return "Microphone access is required."
+            }
+        }
+
+        var alertDetails: String {
+            switch self {
+            case .screenCapture:
+                return "scrshot needs Screen Recording access to capture screenshots and record your screen. Open System Settings and enable scrshot."
+            case .microphone:
+                return "scrshot needs Microphone access only when you choose a recording mode that captures microphone audio. Open System Settings and enable scrshot."
+            }
+        }
+    }
 
     init(
         screenCapturePermissionController: ScreenCapturePermissionController = .shared,
@@ -170,11 +167,22 @@ final class AppPermissionCoordinator {
             }
             AppLogger.shared.info(.appDiagnostics, "opening privacy pane anchor=\(anchor)")
             NSWorkspace.shared.open(url)
+        },
+        confirmOpenPrivacyPane: @escaping @MainActor (PermissionKind) -> Bool = { permissionKind in
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = permissionKind.alertMessage
+            alert.informativeText = permissionKind.alertDetails
+            alert.addButton(withTitle: "Open Settings")
+            alert.addButton(withTitle: "Cancel")
+            return alert.runModal() == .alertFirstButtonReturn
         }
     ) {
         self.screenCapturePermissionController = screenCapturePermissionController
         self.microphonePermissionController = microphonePermissionController
         self.openPrivacyPane = openPrivacyPane
+        self.confirmOpenPrivacyPane = confirmOpenPrivacyPane
     }
 
     func logStatusOnLaunch(recordingAudioSource: AppPreferences.RecordingAudioSource) {
@@ -203,7 +211,7 @@ final class AppPermissionCoordinator {
         if screenCapturePermissionController.hasAccess {
             return true
         }
-        openPrivacyPane("Privacy_ScreenCapture")
+        openPrivacyPaneIfConfirmed(.screenCapture)
         return false
     }
 
@@ -213,7 +221,7 @@ final class AppPermissionCoordinator {
             if screenCapturePermissionController.hasAccess {
                 return true
             }
-            openPrivacyPane("Privacy_ScreenCapture")
+            openPrivacyPaneIfConfirmed(.screenCapture)
             return false
         }
 
@@ -223,9 +231,14 @@ final class AppPermissionCoordinator {
         }
         let didPrompt = await microphonePermissionController.requestAccessIfNeeded()
         if !didPrompt && !microphonePermissionController.hasAccess {
-            openPrivacyPane("Privacy_Microphone")
+            openPrivacyPaneIfConfirmed(.microphone)
             return false
         }
         return microphonePermissionController.hasAccess
+    }
+
+    private func openPrivacyPaneIfConfirmed(_ permissionKind: PermissionKind) {
+        guard confirmOpenPrivacyPane(permissionKind) else { return }
+        openPrivacyPane(permissionKind.settingsAnchor)
     }
 }
