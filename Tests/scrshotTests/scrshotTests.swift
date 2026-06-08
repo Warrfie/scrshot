@@ -134,15 +134,23 @@ final class ScreenCaptureServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testPermissionPreflightOnLaunchDoesNotOpenSystemSettingsWhenDenied() async {
+    func testPermissionStatusOnLaunchDoesNotPromptOrOpenSystemSettingsWhenDenied() async {
+        var screenCaptureRequestCount = 0
+        var microphoneRequestCount = 0
         let screenCapturePermissionController = ScreenCapturePermissionController(
             preflightAccess: { false },
-            requestAccess: { false },
+            requestAccess: {
+                screenCaptureRequestCount += 1
+                return false
+            },
             activateApp: {}
         )
         let microphonePermissionController = MicrophonePermissionController(
             authorizationStatusProvider: { .notDetermined },
-            requestAccess: { false },
+            requestAccess: {
+                microphoneRequestCount += 1
+                return false
+            },
             activateApp: {}
         )
         var openedAnchors: [String] = []
@@ -152,17 +160,23 @@ final class ScreenCaptureServiceTests: XCTestCase {
             openPrivacyPane: { openedAnchors.append($0) }
         )
 
-        coordinator.preflightOnLaunch(recordingAudioSource: .systemAudioAndMicrophone)
+        coordinator.logStatusOnLaunch(recordingAudioSource: .systemAudioAndMicrophone)
         await Task.yield()
 
         XCTAssertTrue(openedAnchors.isEmpty)
+        XCTAssertEqual(screenCaptureRequestCount, 0)
+        XCTAssertEqual(microphoneRequestCount, 0)
     }
 
     @MainActor
-    func testEnsurePermissionsForCaptureOpensSystemSettingsWhenDenied() {
+    func testEnsurePermissionsForCaptureRequestsPromptAndOpensSystemSettingsWhenStillDenied() {
+        var requestCount = 0
         let screenCapturePermissionController = ScreenCapturePermissionController(
             preflightAccess: { false },
-            requestAccess: { false },
+            requestAccess: {
+                requestCount += 1
+                return false
+            },
             activateApp: {}
         )
         var openedAnchors: [String] = []
@@ -179,6 +193,7 @@ final class ScreenCaptureServiceTests: XCTestCase {
         let granted = coordinator.ensurePermissionsForCapture()
 
         XCTAssertFalse(granted)
+        XCTAssertEqual(requestCount, 1)
         XCTAssertEqual(openedAnchors, ["Privacy_ScreenCapture"])
     }
 
@@ -203,10 +218,15 @@ final class ScreenCaptureServiceTests: XCTestCase {
 
     @MainActor
     func testEnsurePermissionsForRecordingReturnsFalseWhenScreenCapturePermissionDenied() async {
+        var requestCount = 0
+        var openedAnchors: [String] = []
         let coordinator = AppPermissionCoordinator(
             screenCapturePermissionController: ScreenCapturePermissionController(
                 preflightAccess: { false },
-                requestAccess: { false },
+                requestAccess: {
+                    requestCount += 1
+                    return false
+                },
                 activateApp: {}
             ),
             microphonePermissionController: MicrophonePermissionController(
@@ -214,11 +234,13 @@ final class ScreenCaptureServiceTests: XCTestCase {
                 requestAccess: { true },
                 activateApp: {}
             ),
-            openPrivacyPane: { _ in }
+            openPrivacyPane: { openedAnchors.append($0) }
         )
 
         let granted = await coordinator.ensurePermissionsForRecording(audioSource: .systemAudio)
         XCTAssertFalse(granted)
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertEqual(openedAnchors, ["Privacy_ScreenCapture"])
     }
 }
 
@@ -962,7 +984,7 @@ final class HotkeyManagerTests: XCTestCase {
         let descriptor = HotkeyManager.defaultCaptureHotkey
 
         XCTAssertEqual(descriptor.id, 1)
-        XCTAssertEqual(descriptor.keyCode, 19)
+        XCTAssertEqual(descriptor.keyCode, 18)
         XCTAssertEqual(descriptor.modifiers, UInt32(cmdKey | shiftKey))
     }
 
@@ -970,10 +992,11 @@ final class HotkeyManagerTests: XCTestCase {
         let coordinator = AppInstanceCoordinator(
             bundleIdentifier: "io.github.Warrfie.scrshot",
             currentProcessIdentifier: 100,
-            runningApplicationsProvider: { _ in
-                [
-                    .init(processIdentifier: 100),
-                    .init(processIdentifier: 222)
+            runningApplicationsProvider: { bundleIdentifier in
+                guard bundleIdentifier == "io.github.Warrfie.scrshot" else { return [] }
+                return [
+                    .init(processIdentifier: 100, bundleIdentifier: "io.github.Warrfie.scrshot"),
+                    .init(processIdentifier: 222, bundleIdentifier: "io.github.Warrfie.scrshot")
                 ]
             }
         )
@@ -985,11 +1008,12 @@ final class HotkeyManagerTests: XCTestCase {
         let coordinator = AppInstanceCoordinator(
             bundleIdentifier: "io.github.Warrfie.scrshot",
             currentProcessIdentifier: 100,
-            runningApplicationsProvider: { _ in
-                [
-                    .init(processIdentifier: 100),
-                    .init(processIdentifier: 222),
-                    .init(processIdentifier: 333)
+            runningApplicationsProvider: { bundleIdentifier in
+                guard bundleIdentifier == "io.github.Warrfie.scrshot" else { return [] }
+                return [
+                    .init(processIdentifier: 100, bundleIdentifier: "io.github.Warrfie.scrshot"),
+                    .init(processIdentifier: 222, bundleIdentifier: "io.github.Warrfie.scrshot"),
+                    .init(processIdentifier: 333, bundleIdentifier: "io.github.Warrfie.scrshot")
                 ]
             }
         )
@@ -997,32 +1021,55 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(coordinator.existingInstanceProcessIdentifiers(), [222, 333])
     }
 
+    func testAppInstanceCoordinatorCollectsReleaseDevAndLegacyInstances() {
+        let coordinator = AppInstanceCoordinator(
+            bundleIdentifier: "io.github.Warrfie.scrshot.dev",
+            currentProcessIdentifier: 100,
+            runningApplicationsProvider: { bundleIdentifier in
+                switch bundleIdentifier {
+                case "io.github.Warrfie.scrshot.dev":
+                    return [.init(processIdentifier: 100, bundleIdentifier: "io.github.Warrfie.scrshot.dev")]
+                case "io.github.Warrfie.scrshot":
+                    return [.init(processIdentifier: 222, bundleIdentifier: "io.github.Warrfie.scrshot")]
+                case "com.warrfie.scrshot":
+                    return [.init(processIdentifier: 333, bundleIdentifier: "com.warrfie.scrshot")]
+                case nil:
+                    return [
+                        .init(
+                            processIdentifier: 222,
+                            bundleIdentifier: "io.github.Warrfie.scrshot",
+                            bundlePath: "/Applications/scrshot.app",
+                            executablePath: "/Applications/scrshot.app/Contents/MacOS/scrshot",
+                            localizedName: "scrshot"
+                        ),
+                        .init(
+                            processIdentifier: 444,
+                            bundleIdentifier: nil,
+                            bundlePath: "/tmp/scrshot-dev.app",
+                            executablePath: "/tmp/scrshot-dev.app/Contents/MacOS/scrshot-dev",
+                            localizedName: "scrshot-dev"
+                        )
+                    ]
+                default:
+                    return []
+                }
+            }
+        )
+
+        XCTAssertEqual(Set(coordinator.existingInstanceProcessIdentifiers()), [222, 333, 444])
+    }
+
     func testAppInstanceCoordinatorIgnoresCurrentProcessWhenSingleInstance() {
         let coordinator = AppInstanceCoordinator(
             bundleIdentifier: "io.github.Warrfie.scrshot",
             currentProcessIdentifier: 100,
-            runningApplicationsProvider: { _ in
-                [.init(processIdentifier: 100)]
+            runningApplicationsProvider: { bundleIdentifier in
+                guard bundleIdentifier == "io.github.Warrfie.scrshot" else { return [] }
+                return [.init(processIdentifier: 100, bundleIdentifier: "io.github.Warrfie.scrshot")]
             }
         )
 
         XCTAssertNil(coordinator.existingInstanceProcessIdentifier())
-    }
-
-    func testPermissionPreflightPolicySkipsLaunchPreflightInTests() {
-        let policy = PermissionPreflightPolicy(
-            environment: ["XCTestConfigurationFilePath": "/tmp/test.xctestconfiguration"]
-        )
-
-        XCTAssertFalse(policy.shouldRunOnLaunch)
-    }
-
-    func testPermissionPreflightPolicyRespectsManualSkipFlag() {
-        let policy = PermissionPreflightPolicy(
-            environment: [PermissionPreflightPolicy.skipEnvironmentKey: "true"]
-        )
-
-        XCTAssertFalse(policy.shouldRunOnLaunch)
     }
 
     func testPermissionStatusSnapshotSummariesReflectCurrentAccessState() {
@@ -1052,6 +1099,7 @@ final class AppPreferencesTests: XCTestCase {
 
         let customDirectory = URL(fileURLWithPath: "/tmp/scrshot-custom-save", isDirectory: true)
         let customHotkey = HotkeyManager.HotkeyDescriptor(id: 1, keyCode: 24, modifiers: UInt32(cmdKey | optionKey))
+        try? FileManager.default.createDirectory(at: customDirectory, withIntermediateDirectories: true)
 
         preferences.captureHotkey = customHotkey
         preferences.theme = .dark
@@ -1071,7 +1119,8 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(reloaded.captureHotkey.keyCode, customHotkey.keyCode)
         XCTAssertEqual(reloaded.captureHotkey.modifiers, customHotkey.modifiers)
         XCTAssertEqual(reloaded.theme, .dark)
-        XCTAssertEqual(reloaded.saveDirectoryURL.path, customDirectory.path)
+        XCTAssertEqual(reloaded.saveDirectoryURL.standardizedFileURL.path, customDirectory.standardizedFileURL.path)
+        XCTAssertNotNil(defaults.data(forKey: AppPreferences.Keys.saveDirectoryBookmark))
         XCTAssertEqual(reloaded.launchAtLogin, true)
         XCTAssertEqual(reloaded.exportBehavior, .saveOnly)
         XCTAssertEqual(reloaded.fileNamePrefix, "team-shot")
@@ -1082,6 +1131,27 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(reloaded.captureSound, .hero)
     }
 
+    func testSaveDirectoryAccessUsesStoredDirectory() throws {
+        let suiteName = "scrshot-tests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = AppPreferences(defaults: defaults)
+        let customDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "scrshot-bookmark-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: customDirectory, withIntermediateDirectories: true)
+
+        try preferences.updateSaveDirectory(customDirectory)
+
+        let resolvedPath = try preferences.withSaveDirectoryAccess { directory in
+            directory.path
+        }
+
+        XCTAssertEqual(URL(fileURLWithPath: resolvedPath).standardizedFileURL.path, customDirectory.standardizedFileURL.path)
+        XCTAssertNotNil(defaults.data(forKey: AppPreferences.Keys.saveDirectoryBookmark))
+    }
+
     func testPreferencesDefaultSaveDirectoryEndsWithScreenshots() {
         let suiteName = "scrshot-tests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -1089,6 +1159,20 @@ final class AppPreferencesTests: XCTestCase {
         let preferences = AppPreferences(defaults: defaults)
 
         XCTAssertTrue(preferences.saveDirectoryURL.path.hasSuffix("/Documents/Screenshots"))
+    }
+
+    func testPreferencesMigratesLegacyDefaultHotkeyToCommandShiftOne() {
+        let suiteName = "scrshot-tests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(19, forKey: AppPreferences.Keys.hotkeyKeyCode)
+        defaults.set(Int(cmdKey | shiftKey), forKey: AppPreferences.Keys.hotkeyModifiers)
+
+        let preferences = AppPreferences(defaults: defaults)
+
+        XCTAssertEqual(preferences.captureHotkey.keyCode, 18)
+        XCTAssertEqual(preferences.captureHotkey.modifiers, UInt32(cmdKey | shiftKey))
+        XCTAssertEqual(defaults.integer(forKey: AppPreferences.Keys.hotkeyKeyCode), 18)
     }
 
     func testPreferencesFallbackToDefaultsAfterResetAndInvalidThemeValue() {
@@ -1129,7 +1213,13 @@ final class AppPreferencesTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         let preferences = AppPreferences(defaults: defaults)
+        let customDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "scrshot-reset-bookmark-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try? FileManager.default.createDirectory(at: customDirectory, withIntermediateDirectories: true)
 
+        preferences.saveDirectoryURL = customDirectory
         preferences.launchAtLogin = true
         preferences.exportBehavior = .copyOnly
         preferences.fileNamePrefix = " custom:name "
@@ -1139,8 +1229,10 @@ final class AppPreferencesTests: XCTestCase {
         preferences.captureSound = .submarine
         preferences.recordingAudioSource = .microphoneOnly
         preferences.recordingFileFormat = .mp4
+        XCTAssertNotNil(defaults.data(forKey: AppPreferences.Keys.saveDirectoryBookmark))
         preferences.resetToDefaults()
 
+        XCTAssertNil(defaults.data(forKey: AppPreferences.Keys.saveDirectoryBookmark))
         XCTAssertEqual(preferences.launchAtLogin, false)
         XCTAssertEqual(preferences.exportBehavior, .copyAndSave)
         XCTAssertEqual(preferences.fileNamePrefix, "screenshot")

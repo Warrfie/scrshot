@@ -10,7 +10,7 @@ final class HotkeyManager {
 
     static let defaultCaptureHotkey = HotkeyDescriptor(
         id: 1,
-        keyCode: 19,
+        keyCode: 18,
         modifiers: UInt32(cmdKey | shiftKey)
     )
 
@@ -117,6 +117,7 @@ final class HotkeyManager {
             guard let self else { return }
             switch hotKeyID.id {
             case self.captureHotkey.id:
+                AppLogger.shared.info(.hotkey, "capture hotkey pressed")
                 self.onCapture?()
             default:
                 break

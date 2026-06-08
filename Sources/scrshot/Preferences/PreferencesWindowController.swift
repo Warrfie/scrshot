@@ -184,12 +184,24 @@ final class PreferencesViewModel: ObservableObject {
     }
 
     func updateSaveDirectory(_ url: URL) {
-        preferences.saveDirectoryURL = url
-        objectWillChange.send()
+        do {
+            try preferences.updateSaveDirectory(url)
+            objectWillChange.send()
+        } catch {
+            AppLogger.shared.error(.preferences, "failed to update save directory: \(error.localizedDescription)")
+            NSSound.beep()
+        }
     }
 
     func revealFolder() {
-        NSWorkspace.shared.open(preferences.saveDirectoryURL)
+        do {
+            _ = try preferences.withSaveDirectoryAccess { directory in
+                NSWorkspace.shared.open(directory)
+            }
+        } catch {
+            AppLogger.shared.error(.preferences, "failed to reveal save directory: \(error.localizedDescription)")
+            NSSound.beep()
+        }
     }
 
     func refreshPermissionStatus() {

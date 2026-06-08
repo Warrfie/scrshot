@@ -15,6 +15,7 @@ final class AppPreferences {
         static let hotkeyModifiers = "hotkeyModifiers"
         static let theme = "theme"
         static let saveDirectoryPath = "saveDirectoryPath"
+        static let saveDirectoryBookmark = "saveDirectoryBookmark"
         static let launchAtLogin = "launchAtLogin"
         static let exportBehavior = "exportBehavior"
         static let fileNamePrefix = "fileNamePrefix"
@@ -174,6 +175,20 @@ final class AppPreferences {
         }
     }
 
+    enum SaveDirectoryError: LocalizedError {
+        case failedToCreateBookmark(Error)
+        case failedToResolveBookmark(Error)
+
+        var errorDescription: String? {
+            switch self {
+            case let .failedToCreateBookmark(error):
+                return "Unable to store access to the selected save folder: \(error.localizedDescription)"
+            case let .failedToResolveBookmark(error):
+                return "Unable to access the selected save folder: \(error.localizedDescription)"
+            }
+        }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -193,6 +208,20 @@ final class AppPreferences {
             Keys.recordingAudioSource: RecordingAudioSource.systemAudio.rawValue,
             Keys.recordingFileFormat: RecordingFileFormat.mov.rawValue,
         ])
+        migrateLegacyDefaultHotkeyIfNeeded()
+    }
+
+    private func migrateLegacyDefaultHotkeyIfNeeded() {
+        let legacyDefaultKeyCode = 19
+        let defaultModifiers = Int(HotkeyManager.defaultCaptureHotkey.modifiers)
+        guard
+            defaults.object(forKey: Keys.hotkeyKeyCode) as? Int == legacyDefaultKeyCode,
+            defaults.object(forKey: Keys.hotkeyModifiers) as? Int == defaultModifiers
+        else {
+            return
+        }
+
+        defaults.set(Int(HotkeyManager.defaultCaptureHotkey.keyCode), forKey: Keys.hotkeyKeyCode)
     }
 
     var captureHotkey: HotkeyManager.HotkeyDescriptor {
@@ -225,13 +254,55 @@ final class AppPreferences {
 
     var saveDirectoryURL: URL {
         get {
-            let path = defaults.string(forKey: Keys.saveDirectoryPath) ?? Self.defaultSaveDirectoryURL.path
+            let path = resolvedSaveDirectoryURL()?.path ?? defaults.string(forKey: Keys.saveDirectoryPath) ?? Self.defaultSaveDirectoryURL.path
             return URL(fileURLWithPath: path, isDirectory: true)
         }
         set {
-            defaults.set(newValue.path, forKey: Keys.saveDirectoryPath)
-            notifyChange()
+            do {
+                try updateSaveDirectory(newValue)
+            } catch {
+                storeSaveDirectoryPathOnly(newValue)
+            }
         }
+    }
+
+    var hasSaveDirectoryBookmark: Bool {
+        defaults.data(forKey: Keys.saveDirectoryBookmark) != nil
+    }
+
+    func updateSaveDirectory(_ url: URL) throws {
+        let bookmark = try makeSecurityScopedBookmark(for: url)
+        defaults.set(bookmark, forKey: Keys.saveDirectoryBookmark)
+        defaults.set(url.path, forKey: Keys.saveDirectoryPath)
+        notifyChange()
+    }
+
+    func makeSaveDirectoryAccess() throws -> SecurityScopedDirectoryAccess {
+        if let bookmark = defaults.data(forKey: Keys.saveDirectoryBookmark) {
+            do {
+                var isStale = false
+                let url = try URL(
+                    resolvingBookmarkData: bookmark,
+                    options: [.withSecurityScope],
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                )
+                if isStale {
+                    try updateSaveDirectory(url)
+                }
+                return SecurityScopedDirectoryAccess(url: url)
+            } catch {
+                throw SaveDirectoryError.failedToResolveBookmark(error)
+            }
+        }
+
+        return SecurityScopedDirectoryAccess(url: saveDirectoryURL)
+    }
+
+    func withSaveDirectoryAccess<Result>(_ body: (URL) throws -> Result) throws -> Result {
+        let access = try makeSaveDirectoryAccess()
+        defer { access.stop() }
+        return try body(access.url)
     }
 
     var launchAtLogin: Bool {
@@ -336,6 +407,7 @@ final class AppPreferences {
         defaults.removeObject(forKey: Keys.hotkeyModifiers)
         defaults.removeObject(forKey: Keys.theme)
         defaults.removeObject(forKey: Keys.saveDirectoryPath)
+        defaults.removeObject(forKey: Keys.saveDirectoryBookmark)
         defaults.removeObject(forKey: Keys.launchAtLogin)
         defaults.removeObject(forKey: Keys.exportBehavior)
         defaults.removeObject(forKey: Keys.fileNamePrefix)
@@ -350,6 +422,46 @@ final class AppPreferences {
 
     private func notifyChange() {
         NotificationCenter.default.post(name: .appPreferencesDidChange, object: self)
+    }
+
+    private func storeSaveDirectoryPathOnly(_ url: URL) {
+        defaults.removeObject(forKey: Keys.saveDirectoryBookmark)
+        defaults.set(url.path, forKey: Keys.saveDirectoryPath)
+        notifyChange()
+    }
+
+    private func resolvedSaveDirectoryURL() -> URL? {
+        guard let bookmark = defaults.data(forKey: Keys.saveDirectoryBookmark) else {
+            return nil
+        }
+
+        do {
+            var isStale = false
+            let url = try URL(
+                resolvingBookmarkData: bookmark,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+            return isStale ? nil : url
+        } catch {
+            return nil
+        }
+    }
+
+    private func makeSecurityScopedBookmark(for url: URL) throws -> Data {
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            return try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
+        } catch {
+            throw SaveDirectoryError.failedToCreateBookmark(error)
+        }
     }
 
     private static var defaultSaveDirectoryURL: URL {

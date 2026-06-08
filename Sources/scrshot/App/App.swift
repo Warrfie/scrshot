@@ -63,7 +63,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let preferences = AppPreferences.shared
     private let launchAtLoginController = LaunchAtLoginController()
     private let appInstanceCoordinator = AppInstanceCoordinator()
-    private let permissionPreflightPolicy = PermissionPreflightPolicy()
     private let terminationStateTracker = AppTerminationStateTracker()
     private lazy var coordinator = AppCoordinator(preferences: preferences)
     private lazy var preferencesWindowController = PreferencesWindowController(preferences: preferences)
@@ -83,13 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyTheme()
         launchAtLoginController.apply(isEnabled: preferences.launchAtLogin)
         coordinator.start()
-        if permissionPreflightPolicy.shouldRunOnLaunch {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-                self?.coordinator.preflightPermissionsOnLaunch()
-            }
-        } else {
-            AppLogger.shared.info(.appDiagnostics, "permission preflight skipped on launch")
-        }
+        coordinator.logPermissionStatusOnLaunch()
         statusItemController.configure(
             onToggleRecording: { [weak self] in
                 self?.coordinator.toggleRecording()
@@ -321,6 +314,7 @@ final class AppCoordinator {
     private var editorController: ScreenshotEditorWindowController?
     private var isOpeningEditor = false
     private var lastCaptureRequestDate: Date?
+    private var recordingDirectoryAccess: SecurityScopedDirectoryAccess?
     var onRecordingStateChange: ((Bool) -> Void)?
 
     var isRecording: Bool {
@@ -342,8 +336,8 @@ final class AppCoordinator {
         applyPreferences()
     }
 
-    func preflightPermissionsOnLaunch() {
-        permissionCoordinator.preflightOnLaunch(recordingAudioSource: preferences.recordingAudioSource)
+    func logPermissionStatusOnLaunch() {
+        permissionCoordinator.logStatusOnLaunch(recordingAudioSource: preferences.recordingAudioSource)
     }
 
     func applyPreferences() {
@@ -366,6 +360,7 @@ final class AppCoordinator {
     }
 
     private func captureFullscreen() {
+        AppLogger.shared.info(.appCoordinator, "capture requested")
         guard permissionCoordinator.ensurePermissionsForCapture() else {
             AppLogger.shared.debug(.appCoordinator, "capture aborted because screen recording permission is unavailable")
             return
@@ -429,16 +424,20 @@ final class AppCoordinator {
             return
         }
         do {
+            try ensureSaveDirectoryAccess()
+            let directoryAccess = try preferences.makeSaveDirectoryAccess()
             _ = try await screenRecordingService.startRecording(
                 options: .init(
-                    directory: preferences.saveDirectoryURL,
+                    directory: directoryAccess.url,
                     fileNamePrefix: preferences.fileNamePrefix,
                     timestampTemplate: preferences.timestampTemplate,
                     audioSource: preferences.recordingAudioSource,
                     fileFormat: preferences.recordingFileFormat
                 )
             )
+            recordingDirectoryAccess = directoryAccess
         } catch {
+            recordingDirectoryAccess = nil
             onRecordingStateChange?(false)
             AppLogger.shared.error(.appCoordinator, "failed to start recording: \(error.localizedDescription)")
             NSSound.beep()
@@ -451,7 +450,10 @@ final class AppCoordinator {
             if preferences.revealSavedFile {
                 NSWorkspace.shared.activateFileViewerSelecting([outputURL])
             }
+            recordingDirectoryAccess = nil
+            onRecordingStateChange?(false)
         } catch {
+            recordingDirectoryAccess = nil
             onRecordingStateChange?(false)
             AppLogger.shared.error(.appCoordinator, "failed to stop recording: \(error.localizedDescription)")
             NSSound.beep()
@@ -469,14 +471,17 @@ final class AppCoordinator {
 
             var savedFileURL: URL?
             if shouldSave {
-                savedFileURL = try imageSaver.save(
-                    image: image,
-                    options: ImageSaver.Options(
-                        directory: preferences.saveDirectoryURL,
-                        fileNamePrefix: preferences.fileNamePrefix,
-                        timestampTemplate: preferences.timestampTemplate
+                try ensureSaveDirectoryAccess()
+                savedFileURL = try preferences.withSaveDirectoryAccess { directory in
+                    try imageSaver.save(
+                        image: image,
+                        options: ImageSaver.Options(
+                            directory: directory,
+                            fileNamePrefix: preferences.fileNamePrefix,
+                            timestampTemplate: preferences.timestampTemplate
+                        )
                     )
-                )
+                }
             }
 
             if preferences.revealSavedFile, let savedFileURL {
@@ -486,5 +491,38 @@ final class AppCoordinator {
             AppLogger.shared.error(.appCoordinator, "failed to finalize screenshot: \(error.localizedDescription)")
             NSSound.beep()
         }
+    }
+
+    private func ensureSaveDirectoryAccess() throws {
+        guard !preferences.hasSaveDirectoryBookmark else { return }
+
+        let panel = NSOpenPanel()
+        panel.title = "Choose Screenshot Save Folder"
+        panel.message = "scrshot needs permission to save screenshots. Choose or create the Screenshots folder in Documents."
+        panel.prompt = "Use Folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+
+        let preferredDirectory = preferences.saveDirectoryURL
+        if FileManager.default.fileExists(atPath: preferredDirectory.path) {
+            panel.directoryURL = preferredDirectory
+        } else {
+            panel.directoryURL = preferredDirectory.deletingLastPathComponent()
+            panel.nameFieldStringValue = preferredDirectory.lastPathComponent
+        }
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            throw AppPreferences.SaveDirectoryError.failedToResolveBookmark(
+                NSError(
+                    domain: "scrshot.saveDirectory",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Save folder permission was not granted."]
+                )
+            )
+        }
+
+        try preferences.updateSaveDirectory(url)
     }
 }

@@ -135,7 +135,8 @@ The current preference surface includes:
 Defaults currently include:
 
 - hotkey: `Cmd + Shift + 1`
-- save folder: `~/Documents/Screenshots`
+- save folder: `~/Documents/Screenshots` for local unsandboxed development, `~/Downloads/Screenshots` when running sandboxed
+- user-selected save folders are persisted with security-scoped bookmarks
 - export behavior: `Copy and Save`
 - file prefix: `screenshot`
 - timestamp template: `yyyy-MM-dd_HH-mm-ss`

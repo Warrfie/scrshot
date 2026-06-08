@@ -117,6 +117,7 @@ The default screenshot behavior is `Copy and Save`.
 You will need:
 
 - `Screen Recording` permission for screenshots and video recording
+- `System Audio Recording` permission if you choose a system-audio recording mode
 - `Microphone` permission if you choose a microphone-based recording mode
 
 ## Installation
@@ -148,7 +149,8 @@ GitHub Actions artifacts are retained for CI/debug access only; use GitHub Relea
 
 ### Save Location
 
-- Default folder: `~/Documents/Screenshots`
+- Default folder: `~/Documents/Screenshots` for local unsandboxed development, `~/Downloads/Screenshots` when running sandboxed.
+- User-selected folders are persisted with security-scoped bookmarks so saves keep working after app restart.
 
 ### Recording Defaults
 

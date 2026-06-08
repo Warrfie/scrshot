@@ -163,6 +163,7 @@ final class ScreenCaptureService {
     }
 
     private func logVisibleWindowDiagnostics() {
+#if DEBUG
         let frontmostApp = NSWorkspace.shared.frontmostApplication
         let frontmostName = frontmostApp?.localizedName ?? "nil"
         let frontmostBundleID = frontmostApp?.bundleIdentifier ?? "nil"
@@ -181,9 +182,11 @@ final class ScreenCaptureService {
             return "\(owner)::\(title) layer=\(layer) bounds=\(bounds)"
         }.joined(separator: " | ")
         debugLog("visible CG windows count=\(windowInfo.count) [\(interestingWindows)]")
+#endif
     }
 
     private func logImageDiagnostics(_ image: CGImage, label: String) {
+#if DEBUG
         guard let providerData = image.dataProvider?.data,
               let data = CFDataGetBytePtr(providerData) else {
             debugLog("\(label) image diagnostics unavailable; no provider data")
@@ -211,6 +214,7 @@ final class ScreenCaptureService {
         }.joined(separator: " | ")
 
         debugLog("\(label) sample pixels [\(pixels)]")
+#endif
     }
 
     func captureCurrentDisplay() throws -> CapturedScreen {

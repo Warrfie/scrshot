@@ -87,6 +87,8 @@ final class ScreenRecordingService: NSObject {
             return try await session.start()
         } catch {
             nativeSession = nil
+            isRecording = false
+            onRecordingStateChanged?(false)
             throw error
         }
     }
@@ -94,15 +96,21 @@ final class ScreenRecordingService: NSObject {
     func stopRecording() async throws -> URL {
         guard #available(macOS 15.0, *),
               let session = nativeSession as? NativeRecordingSession else {
+            nativeSession = nil
+            isRecording = false
+            onRecordingStateChanged?(false)
             throw RecordingError.failedToFinalize
         }
 
+        defer {
+            nativeSession = nil
+            isRecording = false
+            onRecordingStateChanged?(false)
+        }
+
         do {
-            let outputURL = try await session.stop()
-            nativeSession = nil
-            return outputURL
+            return try await session.stop()
         } catch {
-            nativeSession = nil
             throw error
         }
     }
@@ -321,6 +329,7 @@ extension NativeRecordingSession: SCStreamDelegate, SCRecordingOutputDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             AppLogger.shared.info(.screenRecordingService, "recording finished path=\(self.outputURL.path)")
+            self.onStateChanged(false)
             self.finishContinuation?.resume(returning: self.outputURL)
             self.finishContinuation = nil
             self.teardown()

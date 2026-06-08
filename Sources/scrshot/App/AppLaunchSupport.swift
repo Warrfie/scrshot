@@ -12,23 +12,63 @@ enum XcodePreviewSupport {
 
 struct AppInstanceCoordinator {
     static let disableSingleInstanceEnvironmentKey = "SCRSHOT_DISABLE_SINGLE_INSTANCE_ENFORCEMENT"
+    static let knownBundleIdentifiers: Set<String> = [
+        "io.github.Warrfie.scrshot",
+        "io.github.Warrfie.scrshot.dev",
+        "com.warrfie.scrshot",
+    ]
+    static let knownExecutableNames: Set<String> = [
+        "scrshot",
+        "scrshot-dev",
+    ]
 
     struct RunningApp: Equatable {
         let processIdentifier: pid_t
+        let bundleIdentifier: String?
+        let bundlePath: String?
+        let executablePath: String?
+        let localizedName: String?
+
+        init(
+            processIdentifier: pid_t,
+            bundleIdentifier: String? = nil,
+            bundlePath: String? = nil,
+            executablePath: String? = nil,
+            localizedName: String? = nil
+        ) {
+            self.processIdentifier = processIdentifier
+            self.bundleIdentifier = bundleIdentifier
+            self.bundlePath = bundlePath
+            self.executablePath = executablePath
+            self.localizedName = localizedName
+        }
     }
 
     let bundleIdentifier: String?
     let currentProcessIdentifier: pid_t
     let environment: [String: String]
-    let runningApplicationsProvider: (String) -> [RunningApp]
+    let runningApplicationsProvider: (String?) -> [RunningApp]
 
     init(
         bundleIdentifier: String? = Bundle.main.bundleIdentifier,
         currentProcessIdentifier: pid_t = ProcessInfo.processInfo.processIdentifier,
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        runningApplicationsProvider: @escaping (String) -> [RunningApp] = { bundleIdentifier in
-            NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
-                .map { RunningApp(processIdentifier: $0.processIdentifier) }
+        runningApplicationsProvider: @escaping (String?) -> [RunningApp] = { bundleIdentifier in
+            let applications: [NSRunningApplication]
+            if let bundleIdentifier {
+                applications = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            } else {
+                applications = NSWorkspace.shared.runningApplications
+            }
+            return applications.map {
+                RunningApp(
+                    processIdentifier: $0.processIdentifier,
+                    bundleIdentifier: $0.bundleIdentifier,
+                    bundlePath: $0.bundleURL?.path,
+                    executablePath: $0.executableURL?.path,
+                    localizedName: $0.localizedName
+                )
+            }
         }
     ) {
         self.bundleIdentifier = bundleIdentifier
@@ -46,31 +86,35 @@ struct AppInstanceCoordinator {
            ["1", "true", "yes"].contains(value) {
             return []
         }
-        guard let bundleIdentifier else { return [] }
-        return runningApplicationsProvider(bundleIdentifier)
+        let bundleIdentifiers = Self.knownBundleIdentifiers.union([bundleIdentifier].compactMap { $0 })
+        let bundleMatches = bundleIdentifiers.flatMap { runningApplicationsProvider($0) }
+        let nameMatches = runningApplicationsProvider(nil).filter(isKnownScrshotApplication)
+
+        var seenProcessIdentifiers = Set<pid_t>()
+        return (bundleMatches + nameMatches)
             .map(\.processIdentifier)
             .filter { $0 != currentProcessIdentifier }
-    }
-}
-
-struct PermissionPreflightPolicy {
-    static let skipEnvironmentKey = "SCRSHOT_SKIP_PERMISSION_PREFLIGHT"
-
-    let environment: [String: String]
-
-    init(environment: [String: String] = ProcessInfo.processInfo.environment) {
-        self.environment = environment
+            .filter { seenProcessIdentifiers.insert($0).inserted }
     }
 
-    var shouldRunOnLaunch: Bool {
-        if environment["XCTestConfigurationFilePath"] != nil {
-            return false
+    private func isKnownScrshotApplication(_ app: RunningApp) -> Bool {
+        if let bundleIdentifier = app.bundleIdentifier,
+           Self.knownBundleIdentifiers.contains(bundleIdentifier) {
+            return true
         }
-        if let value = environment[Self.skipEnvironmentKey]?.lowercased(),
-           ["1", "true", "yes"].contains(value) {
-            return false
+        if let executableName = app.executablePath.map({ URL(fileURLWithPath: $0).lastPathComponent }),
+           Self.knownExecutableNames.contains(executableName) {
+            return true
         }
-        return true
+        if let bundleName = app.bundlePath.map({ URL(fileURLWithPath: $0).lastPathComponent }),
+           ["scrshot.app", "scrshot-dev.app"].contains(bundleName) {
+            return true
+        }
+        if let localizedName = app.localizedName,
+           Self.knownExecutableNames.contains(localizedName) {
+            return true
+        }
+        return false
     }
 }
 
@@ -123,8 +167,10 @@ final class AppPermissionCoordinator {
         microphonePermissionController: MicrophonePermissionController = .shared,
         openPrivacyPane: @escaping (String) -> Void = { anchor in
             guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") else {
+                AppLogger.shared.error(.appDiagnostics, "failed to build privacy pane URL anchor=\(anchor)")
                 return
             }
+            AppLogger.shared.info(.appDiagnostics, "opening privacy pane anchor=\(anchor)")
             NSWorkspace.shared.open(url)
         }
     ) {
@@ -133,62 +179,44 @@ final class AppPermissionCoordinator {
         self.openPrivacyPane = openPrivacyPane
     }
 
-    func preflightOnLaunch(recordingAudioSource: AppPreferences.RecordingAudioSource) {
+    func logStatusOnLaunch(recordingAudioSource: AppPreferences.RecordingAudioSource) {
         let screenCaptureGranted = screenCapturePermissionController.hasAccess
         AppLogger.shared.info(
             .appDiagnostics,
-            "permission preflight screenCapture granted=\(screenCaptureGranted) prompted=\(screenCapturePermissionController.hasRequestedSystemPrompt)"
+            "permission status screenCapture granted=\(screenCaptureGranted) prompted=\(screenCapturePermissionController.hasRequestedSystemPrompt)"
         )
-        if !screenCaptureGranted {
-            let requestResult = screenCapturePermissionController.requestAccessIfNeeded()
-            AppLogger.shared.info(
-                .appDiagnostics,
-                "permission preflight screenCapture requestResult=\(requestResult) prompted=\(screenCapturePermissionController.hasRequestedSystemPrompt)"
-            )
-        }
 
         guard recordingAudioSource.capturesMicrophone else {
-            AppLogger.shared.info(.appDiagnostics, "permission preflight microphone skipped for audioSource=\(recordingAudioSource.rawValue)")
+            AppLogger.shared.info(.appDiagnostics, "permission status microphone skipped for audioSource=\(recordingAudioSource.rawValue)")
             return
         }
 
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let microphoneGranted = self.microphonePermissionController.hasAccess
-            AppLogger.shared.info(
-                .appDiagnostics,
-                "permission preflight microphone granted=\(microphoneGranted) status=\(self.microphonePermissionController.authorizationStatus.rawValue) prompted=\(self.microphonePermissionController.hasRequestedSystemPrompt)"
-            )
-            if !microphoneGranted {
-                let requestResult = await self.microphonePermissionController.requestAccessIfNeeded()
-                AppLogger.shared.info(
-                    .appDiagnostics,
-                    "permission preflight microphone requestResult=\(requestResult) status=\(self.microphonePermissionController.authorizationStatus.rawValue)"
-                )
-            }
-        }
+        AppLogger.shared.info(
+            .appDiagnostics,
+            "permission status microphone granted=\(microphonePermissionController.hasAccess) status=\(microphonePermissionController.authorizationStatus.rawValue) prompted=\(microphonePermissionController.hasRequestedSystemPrompt)"
+        )
     }
 
     func ensurePermissionsForCapture() -> Bool {
         if screenCapturePermissionController.hasAccess {
             return true
         }
-        if !screenCapturePermissionController.requestAccessIfNeeded() {
-            openPrivacyPane("Privacy_ScreenCapture")
-            return false
+        _ = screenCapturePermissionController.requestAccessIfNeeded()
+        if screenCapturePermissionController.hasAccess {
+            return true
         }
-        return screenCapturePermissionController.hasAccess
+        openPrivacyPane("Privacy_ScreenCapture")
+        return false
     }
 
     func ensurePermissionsForRecording(audioSource: AppPreferences.RecordingAudioSource) async -> Bool {
         if !screenCapturePermissionController.hasAccess {
-            if !screenCapturePermissionController.requestAccessIfNeeded() {
-                openPrivacyPane("Privacy_ScreenCapture")
-                return false
+            _ = screenCapturePermissionController.requestAccessIfNeeded()
+            if screenCapturePermissionController.hasAccess {
+                return true
             }
-            guard screenCapturePermissionController.hasAccess else {
-                return false
-            }
+            openPrivacyPane("Privacy_ScreenCapture")
+            return false
         }
 
         guard audioSource.capturesMicrophone else { return true }

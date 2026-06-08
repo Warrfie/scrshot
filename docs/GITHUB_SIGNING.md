@@ -63,15 +63,17 @@ The signed flow performs:
 
 1. Import Developer ID certificate into a temporary keychain.
 2. Resolve the Developer ID signing identity from that keychain.
-3. Build the Release app with Developer ID signing and a secure timestamp.
-4. Create a DMG.
-5. Sign the DMG with a secure timestamp.
-6. Submit the DMG to Apple notarization with `notarytool`.
-7. Staple the notarization ticket to the DMG.
-8. Validate the stapled ticket.
-9. Run `spctl` as a diagnostic-only Gatekeeper assessment.
-10. Upload the DMG and SHA256 file as GitHub Actions artifacts for CI/debug access.
-11. For tag builds, create or update the matching GitHub Release and attach the DMG and SHA256 file as public release assets.
+3. Derive `MARKETING_VERSION` from the release tag, for example `v1.2.3` becomes `1.2.3`.
+4. Derive `CURRENT_PROJECT_VERSION` from the GitHub Actions run number unless `BUILD_NUMBER_VALUE` is set explicitly.
+5. Build the Release app with Developer ID signing and a secure timestamp.
+6. Create a DMG.
+7. Sign the DMG with a secure timestamp.
+8. Submit the DMG to Apple notarization with `notarytool`.
+9. Staple the notarization ticket to the DMG.
+10. Validate the stapled ticket.
+11. Run `spctl` as a diagnostic-only Gatekeeper assessment.
+12. Upload the DMG and SHA256 file as GitHub Actions artifacts for CI/debug access.
+13. For tag builds, create or update the matching GitHub Release and attach the DMG and SHA256 file as public release assets.
 
 `spctl` can report `source=Insufficient Context` on GitHub-hosted runners even after successful notarization and stapling. The release gate is Apple notarization plus `stapler validate`; `spctl` is logged for diagnostics and does not fail the workflow when those checks succeed.
 
@@ -102,6 +104,12 @@ Manual runs do not create a GitHub Release asset unless the workflow is running 
 
 ## Local Signed Build
 
+The `Release` configuration is set up for `Developer ID Application` signing with manual signing. This keeps Xcode `Archive` aligned with the public distribution identity instead of producing a development-signed Release app by accident.
+
+The `Debug` configuration uses the separate bundle identifier `io.github.Warrfie.scrshot.dev`. Debug builds do not register themselves as Launch at Login items. This prevents local Xcode/DerivedData builds from replacing or re-opening the installed release app after reboot.
+
+The `Release` configuration keeps the production bundle identifier `io.github.Warrfie.scrshot`, enables App Sandbox, and uses the app entitlements in `Sources/scrshot/scrshot.entitlements`.
+
 Copy the example config:
 
 ```bash
@@ -115,3 +123,5 @@ xcodebuild -project scrshot.xcodeproj -scheme scrshot -configuration Release -xc
 ```
 
 `Config/Signing.local.xcconfig` is ignored by git.
+
+Local Xcode Release builds can validate Developer ID signing, but the public downloadable artifact is still produced by `scripts/build-dmg.sh` or the `Release Artifacts` workflow because they also create the DMG, apply secure timestamps, submit notarization, staple the ticket, and publish release assets.

@@ -15,6 +15,7 @@ enum AppLogCategory: String {
     case editorWindow = "EditorWindow"
     case editorFit = "EditorFit"
     case hotkey = "Hotkey"
+    case preferences = "Preferences"
 }
 
 final class AppLogger {
