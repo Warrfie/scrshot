@@ -149,12 +149,12 @@ GitHub Actions artifacts are retained for CI/debug access only; use GitHub Relea
 
 ### Save Location
 
-- Default folder: `~/Documents/Screenshots` for local unsandboxed development, `~/Downloads/Screenshots` when running sandboxed.
-- User-selected folders are persisted with security-scoped bookmarks so saves keep working after app restart.
+- Default folder: `~/Documents`.
+- The first save asks you to choose a save folder. The selected folder is persisted with a security-scoped bookmark so saves keep working after app restart.
 
 ### Recording Defaults
 
-- Audio source: `System Audio`
+- Audio source: `No Audio`
 - File format: `MOV`
 
 ## Preferences

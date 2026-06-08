@@ -29,7 +29,7 @@
 
     <text x="166" y="440" fill="#F8FAFC" font-size="20" font-weight="700">Recording Audio</text>
     <rect x="450" y="410" width="260" height="38" rx="12" fill="#0F151E" stroke="#40516C"/>
-    <text x="486" y="435" fill="#D7E0EB" font-size="18">System Audio</text>
+    <text x="486" y="435" fill="#D7E0EB" font-size="18">No Audio</text>
 
     <text x="166" y="506" fill="#F8FAFC" font-size="20" font-weight="700">File Prefix</text>
     <rect x="450" y="476" width="260" height="38" rx="12" fill="#0F151E" stroke="#40516C"/>

@@ -1021,16 +1021,17 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(coordinator.existingInstanceProcessIdentifiers(), [222, 333])
     }
 
-    func testAppInstanceCoordinatorCollectsReleaseDevAndLegacyInstances() {
+    func testAppInstanceCoordinatorCollectsReleaseAndLegacyInstances() {
         let coordinator = AppInstanceCoordinator(
-            bundleIdentifier: "io.github.Warrfie.scrshot.dev",
+            bundleIdentifier: "io.github.Warrfie.scrshot",
             currentProcessIdentifier: 100,
             runningApplicationsProvider: { bundleIdentifier in
                 switch bundleIdentifier {
-                case "io.github.Warrfie.scrshot.dev":
-                    return [.init(processIdentifier: 100, bundleIdentifier: "io.github.Warrfie.scrshot.dev")]
                 case "io.github.Warrfie.scrshot":
-                    return [.init(processIdentifier: 222, bundleIdentifier: "io.github.Warrfie.scrshot")]
+                    return [
+                        .init(processIdentifier: 100, bundleIdentifier: "io.github.Warrfie.scrshot"),
+                        .init(processIdentifier: 222, bundleIdentifier: "io.github.Warrfie.scrshot")
+                    ]
                 case "com.warrfie.scrshot":
                     return [.init(processIdentifier: 333, bundleIdentifier: "com.warrfie.scrshot")]
                 case nil:
@@ -1041,13 +1042,6 @@ final class HotkeyManagerTests: XCTestCase {
                             bundlePath: "/Applications/scrshot.app",
                             executablePath: "/Applications/scrshot.app/Contents/MacOS/scrshot",
                             localizedName: "scrshot"
-                        ),
-                        .init(
-                            processIdentifier: 444,
-                            bundleIdentifier: nil,
-                            bundlePath: "/tmp/scrshot-dev.app",
-                            executablePath: "/tmp/scrshot-dev.app/Contents/MacOS/scrshot-dev",
-                            localizedName: "scrshot-dev"
                         )
                     ]
                 default:
@@ -1056,7 +1050,7 @@ final class HotkeyManagerTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(Set(coordinator.existingInstanceProcessIdentifiers()), [222, 333, 444])
+        XCTAssertEqual(Set(coordinator.existingInstanceProcessIdentifiers()), [222, 333])
     }
 
     func testAppInstanceCoordinatorIgnoresCurrentProcessWhenSingleInstance() {
@@ -1152,13 +1146,13 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertNotNil(defaults.data(forKey: AppPreferences.Keys.saveDirectoryBookmark))
     }
 
-    func testPreferencesDefaultSaveDirectoryEndsWithScreenshots() {
+    func testPreferencesDefaultSaveDirectoryIsDocuments() {
         let suiteName = "scrshot-tests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         let preferences = AppPreferences(defaults: defaults)
 
-        XCTAssertTrue(preferences.saveDirectoryURL.path.hasSuffix("/Documents/Screenshots"))
+        XCTAssertTrue(preferences.saveDirectoryURL.path.hasSuffix("/Documents"))
     }
 
     func testPreferencesMigratesLegacyDefaultHotkeyToCommandShiftOne() {
@@ -1196,7 +1190,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.theme, .system)
         XCTAssertEqual(preferences.captureHotkey.keyCode, HotkeyManager.defaultCaptureHotkey.keyCode)
         XCTAssertEqual(preferences.captureHotkey.modifiers, HotkeyManager.defaultCaptureHotkey.modifiers)
-        XCTAssertTrue(preferences.saveDirectoryURL.path.hasSuffix("/Documents/Screenshots"))
+        XCTAssertTrue(preferences.saveDirectoryURL.path.hasSuffix("/Documents"))
         XCTAssertEqual(preferences.launchAtLogin, false)
         XCTAssertEqual(preferences.exportBehavior, .copyAndSave)
         XCTAssertEqual(preferences.fileNamePrefix, "screenshot")
@@ -1204,7 +1198,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.revealSavedFile, false)
         XCTAssertEqual(preferences.playsCaptureSound, true)
         XCTAssertEqual(preferences.captureSound, .grab)
-        XCTAssertEqual(preferences.recordingAudioSource, .systemAudio)
+        XCTAssertEqual(preferences.recordingAudioSource, .noAudio)
         XCTAssertEqual(preferences.recordingFileFormat, .mov)
     }
 
@@ -1240,7 +1234,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.revealSavedFile, false)
         XCTAssertEqual(preferences.playsCaptureSound, true)
         XCTAssertEqual(preferences.captureSound, .grab)
-        XCTAssertEqual(preferences.recordingAudioSource, .systemAudio)
+        XCTAssertEqual(preferences.recordingAudioSource, .noAudio)
         XCTAssertEqual(preferences.recordingFileFormat, .mov)
     }
 }

@@ -6,7 +6,7 @@ final class StatusItemController: ObservableObject {
     static let shared = StatusItemController()
 
     @Published private(set) var isRecording = false
-    @Published private(set) var recordingAudioSource: AppPreferences.RecordingAudioSource = .systemAudio
+    @Published private(set) var recordingAudioSource: AppPreferences.RecordingAudioSource = .noAudio
 
     private var onToggleRecording: (() -> Void)?
     private var onSelectRecordingAudioSource: ((AppPreferences.RecordingAudioSource) -> Void)?

@@ -516,7 +516,7 @@ final class ScreenCaptureService {
               !imageData.isEmpty,
               let source = CGImageSourceCreateWithData(imageData as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-            log("screencapture did not produce a readable PNG at \(captureURL.path)")
+            log("screencapture did not produce a readable PNG")
             return nil
         }
 

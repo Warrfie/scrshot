@@ -476,7 +476,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A10000110000000000000035 /* Signing.xcconfig */;
 			buildSettings = {
-				APP_DISPLAY_NAME = "scrshot-dev";
+					APP_DISPLAY_NAME = scrshot;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -493,9 +493,8 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.github.Warrfie.scrshot.dev;
-				PRODUCT_MODULE_NAME = scrshot;
-				PRODUCT_NAME = "scrshot-dev";
+					PRODUCT_BUNDLE_IDENTIFIER = io.github.Warrfie.scrshot;
+					PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -554,7 +553,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/scrshot-dev.app/Contents/MacOS/scrshot-dev";
+					TEST_HOST = "$(BUILT_PRODUCTS_DIR)/scrshot.app/Contents/MacOS/scrshot";
 				TEST_TARGET_NAME = scrshot;
 			};
 			name = Debug;

@@ -205,7 +205,7 @@ final class AppPreferences {
             Keys.revealSavedFile: false,
             Keys.playsCaptureSound: true,
             Keys.captureSound: CaptureSound.grab.rawValue,
-            Keys.recordingAudioSource: RecordingAudioSource.systemAudio.rawValue,
+            Keys.recordingAudioSource: RecordingAudioSource.noAudio.rawValue,
             Keys.recordingFileFormat: RecordingFileFormat.mov.rawValue,
         ])
         migrateLegacyDefaultHotkeyIfNeeded()
@@ -267,7 +267,7 @@ final class AppPreferences {
     }
 
     var hasSaveDirectoryBookmark: Bool {
-        defaults.data(forKey: Keys.saveDirectoryBookmark) != nil
+        resolvedSaveDirectoryURL() != nil
     }
 
     func updateSaveDirectory(_ url: URL) throws {
@@ -296,7 +296,13 @@ final class AppPreferences {
             }
         }
 
-        return SecurityScopedDirectoryAccess(url: saveDirectoryURL)
+        throw SaveDirectoryError.failedToResolveBookmark(
+            NSError(
+                domain: "scrshot.saveDirectory",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Save folder access has not been granted."]
+            )
+        )
     }
 
     func withSaveDirectoryAccess<Result>(_ body: (URL) throws -> Result) throws -> Result {
@@ -382,8 +388,8 @@ final class AppPreferences {
 
     var recordingAudioSource: RecordingAudioSource {
         get {
-            let rawValue = defaults.string(forKey: Keys.recordingAudioSource) ?? RecordingAudioSource.systemAudio.rawValue
-            return RecordingAudioSource(rawValue: rawValue) ?? .systemAudio
+            let rawValue = defaults.string(forKey: Keys.recordingAudioSource) ?? RecordingAudioSource.noAudio.rawValue
+            return RecordingAudioSource(rawValue: rawValue) ?? .noAudio
         }
         set {
             defaults.set(newValue.rawValue, forKey: Keys.recordingAudioSource)
@@ -465,8 +471,7 @@ final class AppPreferences {
     }
 
     private static var defaultSaveDirectoryURL: URL {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return documentsURL.appendingPathComponent("Screenshots", isDirectory: true)
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
     }
 
     private static func sanitizedPrefix(_ value: String) -> String {

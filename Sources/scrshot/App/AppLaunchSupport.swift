@@ -14,12 +14,10 @@ struct AppInstanceCoordinator {
     static let disableSingleInstanceEnvironmentKey = "SCRSHOT_DISABLE_SINGLE_INSTANCE_ENFORCEMENT"
     static let knownBundleIdentifiers: Set<String> = [
         "io.github.Warrfie.scrshot",
-        "io.github.Warrfie.scrshot.dev",
         "com.warrfie.scrshot",
     ]
     static let knownExecutableNames: Set<String> = [
         "scrshot",
-        "scrshot-dev",
     ]
 
     struct RunningApp: Equatable {
@@ -107,7 +105,7 @@ struct AppInstanceCoordinator {
             return true
         }
         if let bundleName = app.bundlePath.map({ URL(fileURLWithPath: $0).lastPathComponent }),
-           ["scrshot.app", "scrshot-dev.app"].contains(bundleName) {
+           ["scrshot.app"].contains(bundleName) {
             return true
         }
         if let localizedName = app.localizedName,

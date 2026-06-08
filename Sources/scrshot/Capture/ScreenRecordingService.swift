@@ -298,7 +298,7 @@ extension NativeRecordingSession: SCStreamDelegate, SCRecordingOutputDelegate {
             guard let self else { return }
             self.didStartRecording = true
             self.onStateChanged(true)
-            AppLogger.shared.info(.screenRecordingService, "recording started path=\(self.outputURL.path)")
+            AppLogger.shared.info(.screenRecordingService, "recording started format=\(self.outputURL.pathExtension.lowercased())")
             self.startContinuation?.resume(returning: self.outputURL)
             self.startContinuation = nil
         }
@@ -328,7 +328,7 @@ extension NativeRecordingSession: SCStreamDelegate, SCRecordingOutputDelegate {
     nonisolated func recordingOutputDidFinishRecording(_ recordingOutput: SCRecordingOutput) {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            AppLogger.shared.info(.screenRecordingService, "recording finished path=\(self.outputURL.path)")
+            AppLogger.shared.info(.screenRecordingService, "recording finished format=\(self.outputURL.pathExtension.lowercased())")
             self.onStateChanged(false)
             self.finishContinuation?.resume(returning: self.outputURL)
             self.finishContinuation = nil

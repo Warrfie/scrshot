@@ -91,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.coordinator.isRecording ?? false
             },
             recordingAudioSourceProvider: { [weak self] in
-                self?.preferences.recordingAudioSource ?? .systemAudio
+                self?.preferences.recordingAudioSource ?? .noAudio
             },
             onSelectRecordingAudioSource: { [weak self] source in
                 self?.preferences.recordingAudioSource = source
@@ -141,14 +141,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
 
-        AppLogger.shared.info(.appLifecycle, "terminating existing instances before continuing launch pids=\(existingPIDs)")
-        existingPIDs.forEach { pid in
-            guard let runningApp = NSRunningApplication(processIdentifier: pid) else { return }
-            if !runningApp.terminate() {
-                _ = runningApp.forceTerminate()
-            }
+        AppLogger.shared.info(.appLifecycle, "another instance is already running")
+        let runningApps = existingPIDs.compactMap(NSRunningApplication.init(processIdentifier:))
+        runningApps.forEach { $0.terminate() }
+
+        let remainingApps = waitForRunningApplicationsToTerminate(runningApps)
+        guard !remainingApps.isEmpty else {
+            return false
         }
-        return false
+
+        switch presentRunningInstanceAlert() {
+        case .alertFirstButtonReturn:
+            remainingApps.forEach { $0.forceTerminate() }
+            let stillRunningApps = waitForRunningApplicationsToTerminate(remainingApps)
+            if stillRunningApps.isEmpty {
+                return false
+            }
+            presentUnableToTerminateAlert()
+            NSApp.terminate(nil)
+            return true
+        default:
+            NSApp.terminate(nil)
+            return true
+        }
+    }
+
+    private func waitForRunningApplicationsToTerminate(_ applications: [NSRunningApplication]) -> [NSRunningApplication] {
+        let deadline = Date().addingTimeInterval(1.5)
+        while Date() < deadline {
+            let remainingApplications = applications.filter { !$0.isTerminated }
+            if remainingApplications.isEmpty {
+                return []
+            }
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+        return applications.filter { !$0.isTerminated }
+    }
+
+    private func presentRunningInstanceAlert() -> NSApplication.ModalResponse {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Another copy of scrshot is already running."
+        alert.informativeText = "scrshot tried to close the existing copy, but it did not quit. You can force quit the existing process and start this copy, or cancel this launch."
+        alert.addButton(withTitle: "Kill Process and Start")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal()
+    }
+
+    private func presentUnableToTerminateAlert() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "scrshot could not close the existing copy."
+        alert.informativeText = "Quit the other copy manually, then start scrshot again."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     private var shouldOpenPreferencesOnLaunch: Bool {
@@ -344,7 +392,7 @@ final class AppCoordinator {
         hotkeyManager.setCaptureHotkey(preferences.captureHotkey)
         AppLogger.shared.info(
             .appCoordinator,
-            "applied preferences hotkey=\(preferences.captureHotkey.keyCode):\(preferences.captureHotkey.modifiers) theme=\(preferences.theme.rawValue) saveDirectory=\(preferences.saveDirectoryURL.path)"
+            "applied preferences hotkey=\(preferences.captureHotkey.keyCode):\(preferences.captureHotkey.modifiers) theme=\(preferences.theme.rawValue)"
         )
     }
 
@@ -498,7 +546,7 @@ final class AppCoordinator {
 
         let panel = NSOpenPanel()
         panel.title = "Choose Screenshot Save Folder"
-        panel.message = "scrshot needs permission to save screenshots. Choose or create the Screenshots folder in Documents."
+        panel.message = "scrshot needs permission to save screenshots. Choose a folder in Documents or any other folder you want to use."
         panel.prompt = "Use Folder"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -510,7 +558,6 @@ final class AppCoordinator {
             panel.directoryURL = preferredDirectory
         } else {
             panel.directoryURL = preferredDirectory.deletingLastPathComponent()
-            panel.nameFieldStringValue = preferredDirectory.lastPathComponent
         }
 
         guard panel.runModal() == .OK, let url = panel.url else {

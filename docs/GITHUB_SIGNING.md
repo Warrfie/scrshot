@@ -106,9 +106,9 @@ Manual runs do not create a GitHub Release asset unless the workflow is running 
 
 The `Release` configuration is set up for `Developer ID Application` signing with manual signing. This keeps Xcode `Archive` aligned with the public distribution identity instead of producing a development-signed Release app by accident.
 
-The `Debug` configuration uses the separate bundle identifier `io.github.Warrfie.scrshot.dev`. Debug builds do not register themselves as Launch at Login items. This prevents local Xcode/DerivedData builds from replacing or re-opening the installed release app after reboot.
+Both `Debug` and `Release` use the production bundle identifier `io.github.Warrfie.scrshot`. The shared `scrshot` scheme launches the `Release` configuration from Xcode so local Play runs exercise the same app identity as the public build.
 
-The `Release` configuration keeps the production bundle identifier `io.github.Warrfie.scrshot`, enables App Sandbox, and uses the app entitlements in `Sources/scrshot/scrshot.entitlements`.
+The `Release` configuration enables App Sandbox, hardened runtime, and uses the app entitlements in `Sources/scrshot/scrshot.entitlements`.
 
 Copy the example config:
 
