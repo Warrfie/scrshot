@@ -78,6 +78,9 @@ final class ScreenRecordingService: NSObject {
             fileFormat: options.fileFormat,
             onStateChanged: { [weak self] isRecording in
                 self?.isRecording = isRecording
+                if !isRecording {
+                    self?.nativeSession = nil
+                }
                 self?.onRecordingStateChanged?(isRecording)
             }
         )
@@ -171,6 +174,7 @@ private final class NativeRecordingSession: NSObject {
     private var finishContinuation: CheckedContinuation<URL, Error>?
     private var pendingError: Error?
     private var didStartRecording = false
+    private var isStoppingCapture = false
 
     init(
         display: SCDisplay,
@@ -231,6 +235,7 @@ private final class NativeRecordingSession: NSObject {
         }
 
         onStateChanged(false)
+        isStoppingCapture = true
 
         do {
             try await stream.stopCapture()
@@ -267,6 +272,18 @@ private final class NativeRecordingSession: NSObject {
     private func teardown() {
         stream = nil
         recordingOutput = nil
+        isStoppingCapture = false
+    }
+
+    private func stopCaptureAfterExternalFinishIfNeeded() async {
+        guard let stream, !isStoppingCapture else { return }
+        isStoppingCapture = true
+
+        do {
+            try await stream.stopCapture()
+        } catch {
+            AppLogger.shared.error(.screenRecordingService, "native stream cleanup after external stop failed: \(error.localizedDescription)")
+        }
     }
 }
 
@@ -329,6 +346,7 @@ extension NativeRecordingSession: SCStreamDelegate, SCRecordingOutputDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             AppLogger.shared.info(.screenRecordingService, "recording finished format=\(self.outputURL.pathExtension.lowercased())")
+            await self.stopCaptureAfterExternalFinishIfNeeded()
             self.onStateChanged(false)
             self.finishContinuation?.resume(returning: self.outputURL)
             self.finishContinuation = nil
