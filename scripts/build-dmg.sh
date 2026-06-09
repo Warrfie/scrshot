@@ -9,6 +9,13 @@ OUTPUT_DIR="${OUTPUT_DIR:-$PWD/build/artifacts}"
 APP_NAME="${APP_NAME:-scrshot.app}"
 DMG_BASENAME="${DMG_BASENAME:-scrshot-macos}"
 VOLUME_NAME="${VOLUME_NAME:-scrshot}"
+DMG_WINDOW_WIDTH="${DMG_WINDOW_WIDTH:-660}"
+DMG_WINDOW_HEIGHT="${DMG_WINDOW_HEIGHT:-400}"
+DMG_ICON_SIZE="${DMG_ICON_SIZE:-96}"
+DMG_APP_ICON_X="${DMG_APP_ICON_X:-165}"
+DMG_APP_ICON_Y="${DMG_APP_ICON_Y:-205}"
+DMG_APPLICATIONS_ICON_X="${DMG_APPLICATIONS_ICON_X:-495}"
+DMG_APPLICATIONS_ICON_Y="${DMG_APPLICATIONS_ICON_Y:-205}"
 SIGNING_ALLOWED="${SIGNING_ALLOWED:-NO}"
 NOTARIZATION_ALLOWED="${NOTARIZATION_ALLOWED:-NO}"
 CODE_SIGN_IDENTITY_VALUE="${CODE_SIGN_IDENTITY_VALUE:-}"
@@ -24,12 +31,22 @@ BUILD_NUMBER_VALUE="${BUILD_NUMBER_VALUE:-${GITHUB_RUN_NUMBER:-}}"
 
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/$APP_NAME"
 STAGING_DIR="$OUTPUT_DIR/dmg-root"
+DMG_MOUNT_DIR="$OUTPUT_DIR/dmg-mount"
+DMG_BACKGROUND_DIR="$STAGING_DIR/.background"
+DMG_BACKGROUND_PATH="$DMG_BACKGROUND_DIR/background.png"
+DMG_BACKGROUND_RENDERER="$PWD/scripts/render-dmg-background.swift"
+DMG_SWIFT_MODULE_CACHE="$OUTPUT_DIR/swift-module-cache"
 DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME.dmg"
+DMG_RW_PATH="$OUTPUT_DIR/$DMG_BASENAME-rw.dmg"
 SHA_PATH="$OUTPUT_DIR/$DMG_BASENAME.sha256"
 NOTARY_RESULT_PATH="$OUTPUT_DIR/$DMG_BASENAME.notary.json"
 NOTARY_KEY_PATH=""
+ATTACHED_DMG=""
 
 cleanup() {
+  if [[ -n "$ATTACHED_DMG" ]]; then
+    hdiutil detach "$ATTACHED_DMG" -quiet || true
+  fi
   if [[ -n "$NOTARY_KEY_PATH" ]]; then
     rm -f "$NOTARY_KEY_PATH"
   fi
@@ -114,18 +131,88 @@ fi
 
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR"
+mkdir -p "$DMG_BACKGROUND_DIR"
 mkdir -p "$OUTPUT_DIR"
 
 ditto "$APP_PATH" "$STAGING_DIR/$APP_NAME"
 ln -s /Applications "$STAGING_DIR/Applications"
 
-rm -f "$DMG_PATH" "$SHA_PATH" "$NOTARY_RESULT_PATH"
+if [[ ! -f "$DMG_BACKGROUND_RENDERER" ]]; then
+  echo "Expected DMG background renderer not found at $DMG_BACKGROUND_RENDERER" >&2
+  exit 1
+fi
+mkdir -p "$DMG_SWIFT_MODULE_CACHE"
+swift -module-cache-path "$DMG_SWIFT_MODULE_CACHE" "$DMG_BACKGROUND_RENDERER" "$DMG_BACKGROUND_PATH"
+
+rm -f "$DMG_PATH" "$DMG_RW_PATH" "$SHA_PATH" "$NOTARY_RESULT_PATH"
+rm -rf "$DMG_MOUNT_DIR"
+mkdir -p "$DMG_MOUNT_DIR"
+
 hdiutil create \
   -volname "$VOLUME_NAME" \
   -srcfolder "$STAGING_DIR" \
   -ov \
+  -format UDRW \
+  -fs HFS+ \
+  "$DMG_RW_PATH"
+
+hdiutil attach "$DMG_RW_PATH" \
+  -readwrite \
+  -noautoopen \
+  -mountpoint "$DMG_MOUNT_DIR" \
+  -quiet
+ATTACHED_DMG="$DMG_MOUNT_DIR"
+
+if command -v SetFile >/dev/null 2>&1; then
+  SetFile -a V "$DMG_MOUNT_DIR/.background" || true
+fi
+
+if command -v osascript >/dev/null 2>&1; then
+  if ! osascript <<APPLESCRIPT
+set mountedFolder to POSIX file "$DMG_MOUNT_DIR" as alias
+set backgroundImage to POSIX file "$DMG_MOUNT_DIR/.background/background.png" as alias
+
+tell application "Finder"
+  tell folder mountedFolder
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set the bounds of container window to {120, 120, 120 + $DMG_WINDOW_WIDTH, 120 + $DMG_WINDOW_HEIGHT}
+
+    set theViewOptions to the icon view options of container window
+    set arrangement of theViewOptions to not arranged
+    set icon size of theViewOptions to $DMG_ICON_SIZE
+    set background picture of theViewOptions to backgroundImage
+
+    set position of item "$APP_NAME" of container window to {$DMG_APP_ICON_X, $DMG_APP_ICON_Y}
+    set position of item "Applications" of container window to {$DMG_APPLICATIONS_ICON_X, $DMG_APPLICATIONS_ICON_Y}
+    close
+    open
+    update without registering applications
+    delay 1
+  end tell
+end tell
+APPLESCRIPT
+  then
+    echo "Warning: failed to apply Finder DMG layout; continuing with default layout." >&2
+  fi
+else
+  echo "Warning: osascript is unavailable; skipping Finder DMG layout." >&2
+fi
+
+rm -rf "$DMG_MOUNT_DIR/.fseventsd" "$DMG_MOUNT_DIR/.Spotlight-V100" "$DMG_MOUNT_DIR/.Trashes"
+sync
+hdiutil detach "$DMG_MOUNT_DIR" -quiet
+ATTACHED_DMG=""
+rm -rf "$DMG_MOUNT_DIR"
+
+hdiutil convert "$DMG_RW_PATH" \
   -format UDZO \
-  "$DMG_PATH"
+  -imagekey zlib-level=9 \
+  -o "$DMG_PATH" \
+  -quiet
+rm -f "$DMG_RW_PATH"
 
 if [[ "$SIGNING_ALLOWED" == "YES" && -n "$DMG_CODE_SIGN_IDENTITY" ]]; then
   DMG_CODESIGN_ARGS=(
