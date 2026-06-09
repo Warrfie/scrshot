@@ -279,7 +279,10 @@ private struct AboutSceneView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Link("GitHub", destination: URL(string: "https://github.com/Warrfie/scrshot")!)
+            HStack(spacing: 12) {
+                Link("Privacy Policy", destination: URL(string: "https://github.com/Warrfie/scrshot/blob/main/docs/PRIVACY.md")!)
+                Link("GitHub", destination: URL(string: "https://github.com/Warrfie/scrshot")!)
+            }
         }
         .padding(20)
         .frame(width: 300)

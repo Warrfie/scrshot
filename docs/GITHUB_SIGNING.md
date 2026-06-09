@@ -106,7 +106,7 @@ Manual runs do not create a GitHub Release asset unless the workflow is running 
 
 The `Release` configuration is set up for `Developer ID Application` signing with manual signing. This keeps Xcode `Archive` aligned with the public distribution identity instead of producing a development-signed Release app by accident.
 
-Both `Debug` and `Release` use the production bundle identifier `io.github.Warrfie.scrshot`. The shared `scrshot` scheme launches the `Release` configuration from Xcode so local Play runs exercise the same app identity as the public build.
+Both `Debug` and `Release` use the production bundle identifier `io.github.Warrfie.scrshot`. The shared `scrshot` scheme launches the `Debug` configuration from Xcode so SwiftUI previews and local debugging use an unoptimized build. Public downloadable artifacts are still built from the `Release` configuration by `scripts/build-dmg.sh` and the `Release Artifacts` workflow.
 
 The `Release` configuration enables App Sandbox, hardened runtime, and uses the app entitlements in `Sources/scrshot/scrshot.entitlements`.
 
@@ -125,3 +125,15 @@ xcodebuild -project scrshot.xcodeproj -scheme scrshot -configuration Release -xc
 `Config/Signing.local.xcconfig` is ignored by git.
 
 Local Xcode Release builds can validate Developer ID signing, but the public downloadable artifact is still produced by `scripts/build-dmg.sh` or the `Release Artifacts` workflow because they also create the DMG, apply secure timestamps, submit notarization, staple the ticket, and publish release assets.
+
+## Mac App Store Builds
+
+Developer ID notarization is separate from Mac App Store submission. For TestFlight or App Store Connect, use:
+
+```bash
+DEVELOPMENT_TEAM_VALUE=<APPLE_TEAM_ID> ./scripts/build-appstore.sh
+```
+
+Set `APPSTORE_ALLOW_PROVISIONING_UPDATES=YES` when Xcode should create or download signing assets automatically. For CI-style authentication, also pass `ASC_API_KEY_PATH`, `ASC_API_KEY_ID`, and `ASC_API_ISSUER_ID`.
+
+That path archives the macOS app for App Store Connect export with Apple Distribution signing. See [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) and [`APP_REVIEW_NOTES.md`](APP_REVIEW_NOTES.md) before submitting.

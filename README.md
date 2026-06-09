@@ -130,6 +130,8 @@ For App Store Connect privacy labels, describe the app behavior as local user-dr
 - screenshots and recordings are saved to a user-selected local folder
 - the app does not upload captures or audio to a server in the current implementation
 
+See [`docs/PRIVACY.md`](docs/PRIVACY.md) for the public privacy policy and [`docs/APP_REVIEW_NOTES.md`](docs/APP_REVIEW_NOTES.md) for the review notes to paste into App Store Connect.
+
 ## Installation
 
 ### Build in Xcode
@@ -150,6 +152,18 @@ For public downloads:
 Tagged release DMGs are signed, notarized, stapled, and published as GitHub Release assets when the required Apple secrets are configured. See [`docs/GITHUB_SIGNING.md`](docs/GITHUB_SIGNING.md).
 
 GitHub Actions artifacts are retained for CI/debug access only; use GitHub Releases for user-facing downloads.
+
+### App Store Build
+
+For Mac App Store or TestFlight preparation, use the App Store archive/export path:
+
+```bash
+DEVELOPMENT_TEAM_VALUE=<APPLE_TEAM_ID> ./scripts/build-appstore.sh
+```
+
+Set `APPSTORE_ALLOW_PROVISIONING_UPDATES=YES` if Xcode should create or download signing assets during archive/export.
+
+See [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) before submitting a build.
 
 ## Default Behavior
 

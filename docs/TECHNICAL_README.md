@@ -217,6 +217,14 @@ By default this produces:
 
 The GitHub Actions workflow `.github/workflows/release-artifacts.yml` uses the same script and uploads the generated `.dmg` plus checksum as downloadable workflow artifacts.
 
+### Build App Store Archive
+
+```bash
+DEVELOPMENT_TEAM_VALUE=<APPLE_TEAM_ID> ./scripts/build-appstore.sh
+```
+
+This creates an App Store Connect export under `build/appstore/`. Use this path for TestFlight or Mac App Store submission, not the Developer ID DMG path.
+
 ## Test
 
 ```bash
