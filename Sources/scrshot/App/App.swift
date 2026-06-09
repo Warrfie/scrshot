@@ -280,7 +280,7 @@ private struct AboutSceneView: View {
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 12) {
-                Link("Privacy Policy", destination: URL(string: "https://github.com/Warrfie/scrshot/blob/main/docs/PRIVACY.md")!)
+                Link("Privacy Policy", destination: URL(string: "https://github.com/Warrfie/scrshot/releases/download/v1.2/PRIVACY.md")!)
                 Link("GitHub", destination: URL(string: "https://github.com/Warrfie/scrshot")!)
             }
         }

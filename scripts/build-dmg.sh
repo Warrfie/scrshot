@@ -18,6 +18,7 @@ DMG_APPLICATIONS_ICON_X="${DMG_APPLICATIONS_ICON_X:-495}"
 DMG_APPLICATIONS_ICON_Y="${DMG_APPLICATIONS_ICON_Y:-205}"
 SIGNING_ALLOWED="${SIGNING_ALLOWED:-NO}"
 NOTARIZATION_ALLOWED="${NOTARIZATION_ALLOWED:-NO}"
+DMG_LAYOUT_REQUIRED="${DMG_LAYOUT_REQUIRED:-$SIGNING_ALLOWED}"
 CODE_SIGN_IDENTITY_VALUE="${CODE_SIGN_IDENTITY_VALUE:-}"
 DEVELOPMENT_TEAM_VALUE="${DEVELOPMENT_TEAM_VALUE:-}"
 DMG_CODE_SIGN_IDENTITY="${DMG_CODE_SIGN_IDENTITY:-$CODE_SIGN_IDENTITY_VALUE}"
@@ -52,6 +53,18 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+handle_dmg_layout_failure() {
+  local message="$1"
+
+  if [[ "$DMG_LAYOUT_REQUIRED" == "YES" ]]; then
+    echo "$message" >&2
+    echo "DMG Finder layout is required for this build. Set DMG_LAYOUT_REQUIRED=NO only for local/dev packaging." >&2
+    exit 1
+  fi
+
+  echo "Warning: $message; continuing with default layout." >&2
+}
 
 SIGNING_ARGS=(
   CODE_SIGNING_ALLOWED="$SIGNING_ALLOWED"
@@ -195,10 +208,10 @@ tell application "Finder"
 end tell
 APPLESCRIPT
   then
-    echo "Warning: failed to apply Finder DMG layout; continuing with default layout." >&2
+    handle_dmg_layout_failure "failed to apply Finder DMG layout"
   fi
 else
-  echo "Warning: osascript is unavailable; skipping Finder DMG layout." >&2
+  handle_dmg_layout_failure "osascript is unavailable; skipping Finder DMG layout"
 fi
 
 rm -rf "$DMG_MOUNT_DIR/.fseventsd" "$DMG_MOUNT_DIR/.Spotlight-V100" "$DMG_MOUNT_DIR/.Trashes"

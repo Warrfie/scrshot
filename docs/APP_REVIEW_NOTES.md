@@ -41,5 +41,5 @@ Use these answers as the basis for App Privacy metadata:
 The public privacy policy URL should point to:
 
 ```text
-https://github.com/Warrfie/scrshot/blob/main/docs/PRIVACY.md
+https://github.com/Warrfie/scrshot/releases/download/v1.2/PRIVACY.md
 ```

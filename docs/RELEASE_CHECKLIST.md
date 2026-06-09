@@ -67,7 +67,7 @@ Minimum metadata to prepare:
 
 - App name: `scrshot`
 - Category: Utilities
-- Privacy policy URL: `https://github.com/Warrfie/scrshot/blob/main/docs/PRIVACY.md`
+- Privacy policy URL: `https://github.com/Warrfie/scrshot/releases/download/v1.2/PRIVACY.md`
 - Review notes: use `docs/APP_REVIEW_NOTES.md`
 - Screenshots showing the menu bar, Preferences, editor, and recording menu state
 

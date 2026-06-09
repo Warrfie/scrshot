@@ -51,16 +51,6 @@
 - Recording format selection: `MOV` by default, `MP4` optional
 - Launch at login
 
-## Preview
-
-### Workflow
-
-![scrshot workflow](docs/readme/workflow.svg)
-
-### Preferences
-
-![scrshot preferences](docs/readme/preferences.svg)
-
 ## Screenshot Workflow
 
 1. Trigger capture from the hotkey.
