@@ -27,7 +27,7 @@ final class StatusItemController: ObservableObject {
 
     var versionMenuTitle: String {
         let bundle = Bundle.main
-        let shortVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let shortVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2"
         let buildVersion = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "Version \(shortVersion) (\(buildVersion))"
     }

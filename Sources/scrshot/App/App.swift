@@ -326,7 +326,7 @@ private struct AboutWindowConfigurator: NSViewRepresentable {
 #if DEBUG
 struct AboutSceneView_Previews: PreviewProvider {
     static var previews: some View {
-        AboutSceneView(versionTitle: "Version 0.1.0 (1)")
+        AboutSceneView(versionTitle: "Version 1.2 (1)")
     }
 }
 #endif
