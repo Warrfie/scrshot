@@ -566,7 +566,7 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         let adjusted = annotation.exportAdjusted(forCanvasHeight: 80)
 
         XCTAssertEqual(adjusted.startPoint, CGPoint(x: 10, y: 66))
-        XCTAssertEqual(adjusted.endPoint, CGPoint(x: 58, y: 66))
+        XCTAssertEqual(adjusted.endPoint, CGPoint(x: 58, y: 18))
     }
 
     func testRenderedImageKeepsLineNearTopEdgeInsteadOfMirroringVertically() {
@@ -594,9 +594,76 @@ final class ScreenshotEditorDocumentTests: XCTestCase {
         document.addAnnotation(annotation)
 
         let rendered = document.renderedImage()!
-        XCTAssertNotEqual(pixel(atX: 20, y: 14, in: rendered), rgba(255, 255, 255))
-        XCTAssertNotEqual(pixel(atX: 48, y: 14, in: rendered), rgba(255, 255, 255))
-        XCTAssertEqual(pixel(atX: 20, y: 65, in: rendered), rgba(255, 255, 255))
+        let downRightPixels = nonWhitePixelCount(
+            in: rendered,
+            from: CGPoint(x: 12, y: 16),
+            to: CGPoint(x: 56, y: 60)
+        )
+        let upRightPixels = nonWhitePixelCount(
+            in: rendered,
+            from: CGPoint(x: 12, y: 60),
+            to: CGPoint(x: 56, y: 16)
+        )
+
+        XCTAssertGreaterThan(downRightPixels, 20)
+        XCTAssertLessThan(upRightPixels, 8)
+    }
+
+    func testLineMagnetizingOnlySnapsNearAxis() {
+        let start = CGPoint(x: 10, y: 10)
+
+        XCTAssertEqual(
+            magnetizedLinePoint(from: start, to: CGPoint(x: 80, y: 20)),
+            CGPoint(x: 80, y: 10)
+        )
+        XCTAssertEqual(
+            magnetizedLinePoint(from: start, to: CGPoint(x: 20, y: 80)),
+            CGPoint(x: 10, y: 80)
+        )
+        XCTAssertEqual(
+            magnetizedLinePoint(from: start, to: CGPoint(x: 80, y: 21)),
+            CGPoint(x: 80, y: 21)
+        )
+        XCTAssertEqual(
+            magnetizedLinePoint(from: start, to: CGPoint(x: 21, y: 80)),
+            CGPoint(x: 21, y: 80)
+        )
+    }
+
+    func testRenderedImagePreservesCrossedDiagonalLinesAfterCrop() {
+        let baseImage = makeImage(width: 100, height: 100, pixels: Array(repeating: rgba(255, 255, 255), count: 10_000))
+        let document = ScreenshotEditorDocument(image: baseImage)
+        var downRight = ScreenshotEditorAnnotation.line(
+            from: CGPoint(x: 20, y: 20),
+            to: CGPoint(x: 80, y: 80),
+            color: .black
+        )
+        var upRight = ScreenshotEditorAnnotation.line(
+            from: CGPoint(x: 20, y: 80),
+            to: CGPoint(x: 80, y: 20),
+            color: .black
+        )
+        downRight.strokeWidth = 4
+        upRight.strokeWidth = 4
+        document.addAnnotation(downRight)
+        document.addAnnotation(upRight)
+        XCTAssertTrue(document.applyCrop(CGRect(x: 10, y: 10, width: 80, height: 80)))
+
+        let rendered = document.renderedImage()!
+
+        let downRightPixels = nonWhitePixelCount(
+            in: rendered,
+            from: CGPoint(x: 10, y: 10),
+            to: CGPoint(x: 70, y: 70)
+        )
+        let upRightPixels = nonWhitePixelCount(
+            in: rendered,
+            from: CGPoint(x: 10, y: 70),
+            to: CGPoint(x: 70, y: 10)
+        )
+
+        XCTAssertGreaterThan(downRightPixels, 35)
+        XCTAssertGreaterThan(upRightPixels, 35)
     }
 
     func testRenderedImagePreservesDiagonalArrowGeometryWhenSaving() {
@@ -1178,6 +1245,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(reloaded.captureHotkey.modifiers, customHotkey.modifiers)
         XCTAssertEqual(reloaded.theme, .dark)
         XCTAssertEqual(reloaded.saveDirectoryURL.standardizedFileURL.path, customDirectory.standardizedFileURL.path)
+        XCTAssertEqual(reloaded.selectedSaveDirectoryURL?.standardizedFileURL.path, customDirectory.standardizedFileURL.path)
         XCTAssertNotNil(defaults.data(forKey: AppPreferences.Keys.saveDirectoryBookmark))
         XCTAssertEqual(reloaded.launchAtLogin, true)
         XCTAssertEqual(reloaded.exportBehavior, .saveOnly)
@@ -1210,13 +1278,14 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertNotNil(defaults.data(forKey: AppPreferences.Keys.saveDirectoryBookmark))
     }
 
-    func testPreferencesDefaultSaveDirectoryIsDocuments() {
+    func testPreferencesDefaultSaveDirectoryIsNotSelected() {
         let suiteName = "scrshot-tests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         let preferences = AppPreferences(defaults: defaults)
 
-        XCTAssertTrue(preferences.saveDirectoryURL.path.hasSuffix("/Documents"))
+        XCTAssertFalse(preferences.hasSaveDirectoryBookmark)
+        XCTAssertNil(preferences.selectedSaveDirectoryURL)
     }
 
     func testPreferencesMigratesLegacyDefaultHotkeyToCommandShiftOne() {
@@ -1254,7 +1323,8 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.theme, .system)
         XCTAssertEqual(preferences.captureHotkey.keyCode, HotkeyManager.defaultCaptureHotkey.keyCode)
         XCTAssertEqual(preferences.captureHotkey.modifiers, HotkeyManager.defaultCaptureHotkey.modifiers)
-        XCTAssertTrue(preferences.saveDirectoryURL.path.hasSuffix("/Documents"))
+        XCTAssertFalse(preferences.hasSaveDirectoryBookmark)
+        XCTAssertNil(preferences.selectedSaveDirectoryURL)
         XCTAssertEqual(preferences.launchAtLogin, false)
         XCTAssertEqual(preferences.exportBehavior, .copyAndSave)
         XCTAssertEqual(preferences.fileNamePrefix, "screenshot")
@@ -1548,6 +1618,23 @@ private func pixel(atX x: Int, y: Int, in image: CGImage) -> RGBA {
     let bytes = CFDataGetBytePtr(data)!
     let offset = y * image.bytesPerRow + x * 4
     return RGBA(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3])
+}
+
+private func nonWhitePixelCount(in image: CGImage, from start: CGPoint, to end: CGPoint) -> Int {
+    let steps = max(Int(abs(end.x - start.x)), Int(abs(end.y - start.y)), 1)
+    var count = 0
+
+    for step in 0...steps {
+        let t = CGFloat(step) / CGFloat(steps)
+        let x = Int(round(start.x + (end.x - start.x) * t))
+        let y = Int(round(start.y + (end.y - start.y) * t))
+        guard x >= 0, x < image.width, y >= 0, y < image.height else { continue }
+        if pixel(atX: x, y: y, in: image) != rgba(255, 255, 255) {
+            count += 1
+        }
+    }
+
+    return count
 }
 
 private func findSubview<T>(in view: NSView, matcher: (NSView) -> T?) -> T? {

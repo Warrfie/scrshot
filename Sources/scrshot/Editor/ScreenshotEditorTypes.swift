@@ -142,7 +142,7 @@ enum ScreenshotDetailRegion {
 func magnetizedLinePoint(from start: CGPoint, to end: CGPoint) -> CGPoint {
     let deltaX = end.x - start.x
     let deltaY = end.y - start.y
-    let snapTolerance: CGFloat = 18
+    let snapTolerance: CGFloat = 10
 
     if abs(deltaY) <= snapTolerance {
         return CGPoint(x: end.x, y: start.y)

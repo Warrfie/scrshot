@@ -5,6 +5,7 @@ import ServiceManagement
 final class LaunchAtLoginController {
     func apply(isEnabled: Bool) {
         guard #available(macOS 13.0, *) else { return }
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
 
         let service = SMAppService.mainApp
         do {

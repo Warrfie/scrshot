@@ -80,7 +80,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppLogger.shared.info(.appLifecycle, "applicationDidFinishLaunching")
         NSApplication.shared.setActivationPolicy(.accessory)
         applyTheme()
-        launchAtLoginController.apply(isEnabled: preferences.launchAtLogin)
+        if !isRunningTests {
+            launchAtLoginController.apply(isEnabled: preferences.launchAtLogin)
+        }
         coordinator.start()
         coordinator.logPermissionStatusOnLaunch()
         statusItemController.configure(
@@ -111,12 +113,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.applyTheme()
-                self.launchAtLoginController.apply(isEnabled: self.preferences.launchAtLogin)
+                if !self.isRunningTests {
+                    self.launchAtLoginController.apply(isEnabled: self.preferences.launchAtLogin)
+                }
                 self.coordinator.applyPreferences()
                 self.statusItemController.refreshRecordingAudioSource(self.preferences.recordingAudioSource)
             }
         }
-        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
+        guard !isRunningTests else {
             return
         }
         if shouldOpenPreferencesOnLaunch {
@@ -133,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func terminateExistingInstancesIfNeeded() -> Bool {
-        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
+        guard !isRunningTests else {
             return false
         }
         let existingPIDs = appInstanceCoordinator.existingInstanceProcessIdentifiers()
@@ -182,6 +186,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return ["1", "true", "yes"].contains(value)
         }
         return false
+    }
+
+    private var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -531,11 +539,12 @@ final class AppCoordinator {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
 
-        let preferredDirectory = preferences.saveDirectoryURL
-        if FileManager.default.fileExists(atPath: preferredDirectory.path) {
-            panel.directoryURL = preferredDirectory
-        } else {
-            panel.directoryURL = preferredDirectory.deletingLastPathComponent()
+        if let preferredDirectory = preferences.selectedSaveDirectoryURL {
+            if FileManager.default.fileExists(atPath: preferredDirectory.path) {
+                panel.directoryURL = preferredDirectory
+            } else {
+                panel.directoryURL = preferredDirectory.deletingLastPathComponent()
+            }
         }
 
         guard panel.runModal() == .OK, let url = panel.url else {

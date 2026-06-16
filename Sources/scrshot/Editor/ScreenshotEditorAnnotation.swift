@@ -86,15 +86,10 @@ struct ScreenshotEditorAnnotation: Identifiable {
     }
 
     static func line(from start: CGPoint, to end: CGPoint, color: NSColor) -> ScreenshotEditorAnnotation {
-        let deltaX = end.x - start.x
-        let deltaY = end.y - start.y
-        let isHorizontal = abs(deltaX) >= abs(deltaY)
-        let targetX = isHorizontal ? end.x : start.x
-        let targetY = isHorizontal ? start.y : end.y
         return ScreenshotEditorAnnotation(
             id: UUID(),
             kind: .line,
-            rect: CGRect(x: start.x, y: start.y, width: targetX - start.x, height: targetY - start.y),
+            rect: CGRect(x: start.x, y: start.y, width: end.x - start.x, height: end.y - start.y),
             text: nil,
             color: color,
             strokeWidth: 8,
@@ -270,10 +265,22 @@ struct ScreenshotEditorAnnotation: Identifiable {
 
     func translatedBy(dx: CGFloat, dy: CGFloat) -> ScreenshotEditorAnnotation {
         var adjusted = self
-        adjusted.rect = adjusted.rect.offsetBy(dx: dx, dy: dy)
-        if adjusted.kind == .detail {
+        switch adjusted.kind {
+        case .arrow, .line:
+            let newStart = startPoint.offsetBy(dx: dx, dy: dy)
+            let newEnd = endPoint.offsetBy(dx: dx, dy: dy)
+            adjusted.rect = CGRect(
+                x: newStart.x,
+                y: newStart.y,
+                width: newEnd.x - newStart.x,
+                height: newEnd.y - newStart.y
+            )
+        case .detail:
+            adjusted.rect = adjusted.rect.offsetBy(dx: dx, dy: dy)
             adjusted.detailSourcePoint = adjusted.detailSourcePoint.offsetBy(dx: dx, dy: dy)
             adjusted.detailSourceRect = adjusted.normalizedDetailSourceRect.offsetBy(dx: dx, dy: dy)
+        case .highlight, .obscure, .text:
+            adjusted.rect = adjusted.rect.offsetBy(dx: dx, dy: dy)
         }
         return adjusted
     }

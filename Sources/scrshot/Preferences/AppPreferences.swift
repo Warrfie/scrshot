@@ -197,7 +197,6 @@ final class AppPreferences {
             Keys.hotkeyKeyCode: Int(HotkeyManager.defaultCaptureHotkey.keyCode),
             Keys.hotkeyModifiers: Int(HotkeyManager.defaultCaptureHotkey.modifiers),
             Keys.theme: Theme.system.rawValue,
-            Keys.saveDirectoryPath: Self.defaultSaveDirectoryURL.path,
             Keys.launchAtLogin: false,
             Keys.exportBehavior: ExportBehavior.copyAndSave.rawValue,
             Keys.fileNamePrefix: "screenshot",
@@ -254,7 +253,7 @@ final class AppPreferences {
 
     var saveDirectoryURL: URL {
         get {
-            resolvedSaveDirectoryURL() ?? Self.defaultSaveDirectoryURL
+            resolvedSaveDirectoryURL() ?? URL(fileURLWithPath: "")
         }
         set {
             do {
@@ -268,6 +267,10 @@ final class AppPreferences {
 
     var hasSaveDirectoryBookmark: Bool {
         resolvedSaveDirectoryURL() != nil
+    }
+
+    var selectedSaveDirectoryURL: URL? {
+        resolvedSaveDirectoryURL()
     }
 
     func updateSaveDirectory(_ url: URL) throws {
@@ -462,10 +465,6 @@ final class AppPreferences {
         } catch {
             throw SaveDirectoryError.failedToCreateBookmark(error)
         }
-    }
-
-    private static var defaultSaveDirectoryURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
     }
 
     private static func sanitizedPrefix(_ value: String) -> String {

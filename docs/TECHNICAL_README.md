@@ -135,7 +135,7 @@ The current preference surface includes:
 Defaults currently include:
 
 - hotkey: `Cmd + Shift + 1`
-- save folder: `~/Documents` by default; first save asks the user to choose a folder and stores a security-scoped bookmark
+- save folder: not selected by default; first save asks the user to choose a user-accessible folder and stores a security-scoped bookmark
 - user-selected save folders are persisted with security-scoped bookmarks
 - export behavior: `Copy and Save`
 - file prefix: `screenshot`

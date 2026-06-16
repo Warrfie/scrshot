@@ -163,8 +163,8 @@ See [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) before submitting a
 
 ### Save Location
 
-- Default folder: `~/Documents`.
-- The first save asks you to choose a save folder. The selected folder is persisted with a security-scoped bookmark so saves keep working after app restart.
+- No save folder is selected by default.
+- The first save asks you to choose a user-accessible save folder. The selected folder is persisted with a security-scoped bookmark so saves keep working after app restart.
 
 ### Recording Defaults
 

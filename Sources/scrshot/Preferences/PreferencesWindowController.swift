@@ -101,8 +101,12 @@ final class PreferencesViewModel: ObservableObject {
         set { preferences.captureHotkey = newValue }
     }
 
-    var saveDirectoryURL: URL {
-        preferences.saveDirectoryURL
+    var saveDirectoryDescription: String {
+        preferences.selectedSaveDirectoryURL?.path ?? "Not selected"
+    }
+
+    var canRevealSaveDirectory: Bool {
+        preferences.hasSaveDirectoryBookmark
     }
 
     var theme: AppPreferences.Theme {
@@ -263,7 +267,7 @@ struct PreferencesRootView: View {
 
                         LabeledContent("Save Folder") {
                             HStack(spacing: 10) {
-                                Text(viewModel.saveDirectoryURL.path)
+                                Text(viewModel.saveDirectoryDescription)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                                     .textSelection(.enabled)
@@ -274,6 +278,7 @@ struct PreferencesRootView: View {
                                 Button("Reveal") {
                                     viewModel.revealFolder()
                                 }
+                                .disabled(!viewModel.canRevealSaveDirectory)
                             }
                         }
                     }
