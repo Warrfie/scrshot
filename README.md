@@ -24,6 +24,43 @@
 - User guide: this `README`
 - Technical documentation: [`docs/TECHNICAL_README.md`](docs/TECHNICAL_README.md)
 
+## Installation
+
+### App Store
+
+Download `scrshot` from the Mac App Store: [`apps.apple.com/us/app/scrshot/id6775205507`](https://apps.apple.com/us/app/scrshot/id6775205507)
+
+### Download Release Build
+
+For public downloads:
+
+1. Open the latest GitHub Release: [`github.com/Warrfie/scrshot/releases`](https://github.com/Warrfie/scrshot/releases)
+2. Download `scrshot-<version>.dmg`
+3. Open the `.dmg` and drag `scrshot.app` to `Applications`
+
+Tagged release DMGs are signed, notarized, stapled, and published as GitHub Release assets when the required Apple secrets are configured. See [`docs/GITHUB_SIGNING.md`](docs/GITHUB_SIGNING.md).
+
+GitHub Actions artifacts are retained for CI/debug access only; use GitHub Releases for user-facing downloads.
+
+### Build in Xcode
+
+1. Open `scrshot.xcodeproj`
+2. Select the `scrshot` scheme
+3. Pick your development team in `Signing & Capabilities`
+4. Build and run
+
+### App Store Build
+
+For Mac App Store or TestFlight preparation, use the App Store archive/export path:
+
+```bash
+DEVELOPMENT_TEAM_VALUE=<APPLE_TEAM_ID> ./scripts/build-appstore.sh
+```
+
+Set `APPSTORE_ALLOW_PROVISIONING_UPDATES=YES` if Xcode should create or download signing assets during archive/export.
+
+See [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) before submitting a build.
+
 ## What It Does
 
 - Captures the display under the current cursor with a global hotkey
@@ -121,39 +158,6 @@ For App Store Connect privacy labels, describe the app behavior as local user-dr
 - the app does not upload captures or audio to a server in the current implementation
 
 See [`docs/PRIVACY.md`](docs/PRIVACY.md) for the public privacy policy and [`docs/APP_REVIEW_NOTES.md`](docs/APP_REVIEW_NOTES.md) for the review notes to paste into App Store Connect.
-
-## Installation
-
-### Build in Xcode
-
-1. Open `scrshot.xcodeproj`
-2. Select the `scrshot` scheme
-3. Pick your development team in `Signing & Capabilities`
-4. Build and run
-
-### Download Release Build
-
-For public downloads:
-
-1. Open the latest GitHub Release: [`github.com/Warrfie/scrshot/releases`](https://github.com/Warrfie/scrshot/releases)
-2. Download `scrshot-<version>.dmg`
-3. Open the `.dmg` and drag `scrshot.app` to `Applications`
-
-Tagged release DMGs are signed, notarized, stapled, and published as GitHub Release assets when the required Apple secrets are configured. See [`docs/GITHUB_SIGNING.md`](docs/GITHUB_SIGNING.md).
-
-GitHub Actions artifacts are retained for CI/debug access only; use GitHub Releases for user-facing downloads.
-
-### App Store Build
-
-For Mac App Store or TestFlight preparation, use the App Store archive/export path:
-
-```bash
-DEVELOPMENT_TEAM_VALUE=<APPLE_TEAM_ID> ./scripts/build-appstore.sh
-```
-
-Set `APPSTORE_ALLOW_PROVISIONING_UPDATES=YES` if Xcode should create or download signing assets during archive/export.
-
-See [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) before submitting a build.
 
 ## Default Behavior
 
