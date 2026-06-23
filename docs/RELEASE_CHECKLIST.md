@@ -2,7 +2,7 @@
 
 ## Before Every Release
 
-1. Update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, or pass them into the release scripts. When `MARKETING_VERSION` changes, reset `CURRENT_PROJECT_VERSION` to `0` and increment it only for additional builds of the same marketing version.
+1. Update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, or pass them into the release scripts. Keep `CURRENT_PROJECT_VERSION` higher than any build number previously uploaded to App Store Connect.
 2. Run tests:
 
    ```bash
