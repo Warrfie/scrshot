@@ -10,6 +10,33 @@ enum XcodePreviewSupport {
     static let isRunning = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
 }
 
+enum TestRuntimeSupport {
+    static var isRunning: Bool {
+        isRunning(
+            environment: ProcessInfo.processInfo.environment,
+            arguments: ProcessInfo.processInfo.arguments
+        ) || NSClassFromString("XCTestCase") != nil || NSClassFromString("XCTest.XCTestCase") != nil
+    }
+
+    static func isRunning(environment: [String: String], arguments: [String]) -> Bool {
+        if let value = environment["SCRSHOT_RUNNING_TESTS"]?.lowercased(),
+           ["1", "true", "yes"].contains(value) {
+            return true
+        }
+        let testEnvironmentKeys = [
+            "XCTestConfigurationFilePath",
+            "XCTestBundlePath",
+            "XCTestSessionIdentifier",
+        ]
+        if testEnvironmentKeys.contains(where: { environment[$0] != nil }) {
+            return true
+        }
+        return arguments.contains { argument in
+            argument.contains(".xctest") || argument.hasPrefix("-XCTest")
+        }
+    }
+}
+
 struct AppInstanceCoordinator {
     static let disableSingleInstanceEnvironmentKey = "SCRSHOT_DISABLE_SINGLE_INSTANCE_ENFORCEMENT"
     static let knownBundleIdentifiers: Set<String> = [

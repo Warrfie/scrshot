@@ -1129,6 +1129,36 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(descriptor.modifiers, UInt32(cmdKey | shiftKey))
     }
 
+    func testTestRuntimeSupportDetectsXCTestHostProcessMarkers() {
+        XCTAssertTrue(TestRuntimeSupport.isRunning(
+            environment: ["SCRSHOT_RUNNING_TESTS": "1"],
+            arguments: []
+        ))
+        XCTAssertTrue(TestRuntimeSupport.isRunning(
+            environment: ["XCTestConfigurationFilePath": "/tmp/test.xctestconfiguration"],
+            arguments: []
+        ))
+        XCTAssertTrue(TestRuntimeSupport.isRunning(
+            environment: ["XCTestBundlePath": "/tmp/scrshotTests.xctest"],
+            arguments: []
+        ))
+        XCTAssertTrue(TestRuntimeSupport.isRunning(
+            environment: [:],
+            arguments: ["/tmp/scrshot.app/Contents/MacOS/scrshot", "-XCTest", "/tmp/scrshotTests.xctest"]
+        ))
+        XCTAssertFalse(TestRuntimeSupport.isRunning(
+            environment: [:],
+            arguments: ["/Applications/scrshot.app/Contents/MacOS/scrshot"]
+        ))
+    }
+
+    func testReadableDefaultCaptureHotkeyUsesExplicitShiftName() {
+        XCTAssertEqual(
+            HotkeyFormatter.readableString(for: HotkeyManager.defaultCaptureHotkey),
+            "⌘ + Shift + 1"
+        )
+    }
+
     func testAppInstanceCoordinatorDetectsAnotherRunningInstance() {
         let coordinator = AppInstanceCoordinator(
             bundleIdentifier: "io.github.Warrfie.scrshot",
@@ -1222,7 +1252,10 @@ final class AppPreferencesTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         let preferences = AppPreferences(defaults: defaults)
 
-        let customDirectory = URL(fileURLWithPath: "/tmp/scrshot-custom-save", isDirectory: true)
+        let customDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "scrshot-custom-save-\(UUID().uuidString)",
+            isDirectory: true
+        )
         let customHotkey = HotkeyManager.HotkeyDescriptor(id: 1, keyCode: 24, modifiers: UInt32(cmdKey | optionKey))
         try? FileManager.default.createDirectory(at: customDirectory, withIntermediateDirectories: true)
 
@@ -1370,6 +1403,24 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.captureSound, .grab)
         XCTAssertEqual(preferences.recordingAudioSource, .noAudio)
         XCTAssertEqual(preferences.recordingFileFormat, .mov)
+    }
+
+    func testIntroShowsOncePerVersion() {
+        let suiteName = "scrshot-tests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferences = AppPreferences(defaults: defaults)
+
+        XCTAssertTrue(preferences.shouldShowIntro(for: "1.2-1"))
+
+        preferences.markIntroShown(for: "1.2-1")
+
+        XCTAssertFalse(preferences.shouldShowIntro(for: "1.2-1"))
+        XCTAssertTrue(preferences.shouldShowIntro(for: "1.3-1"))
+
+        preferences.resetToDefaults()
+
+        XCTAssertTrue(preferences.shouldShowIntro(for: "1.2-1"))
     }
 }
 

@@ -67,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var coordinator = AppCoordinator(preferences: preferences)
     private lazy var preferencesWindowController = PreferencesWindowController(preferences: preferences)
     private let statusItemController = StatusItemController.shared
+    private var introWindowController: IntroWindowController?
     private var preferencesObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -75,14 +76,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if terminateExistingInstancesIfNeeded() {
             return
         }
+        NSApplication.shared.setActivationPolicy(.accessory)
+        guard !isRunningTests else {
+            AppLogger.shared.info(.appLifecycle, "applicationDidFinishLaunching in test host; skipping product lifecycle")
+            return
+        }
         let didPreviousRunCrash = terminationStateTracker.markLaunchStarted()
         logRuntimeDiagnostics()
         AppLogger.shared.info(.appLifecycle, "applicationDidFinishLaunching")
-        NSApplication.shared.setActivationPolicy(.accessory)
         applyTheme()
-        if !isRunningTests {
-            launchAtLoginController.apply(isEnabled: preferences.launchAtLogin)
-        }
+        launchAtLoginController.apply(isEnabled: preferences.launchAtLogin)
         coordinator.start()
         coordinator.logPermissionStatusOnLaunch()
         statusItemController.configure(
@@ -113,15 +116,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.applyTheme()
-                if !self.isRunningTests {
-                    self.launchAtLoginController.apply(isEnabled: self.preferences.launchAtLogin)
-                }
+                self.launchAtLoginController.apply(isEnabled: self.preferences.launchAtLogin)
                 self.coordinator.applyPreferences()
                 self.statusItemController.refreshRecordingAudioSource(self.preferences.recordingAudioSource)
             }
-        }
-        guard !isRunningTests else {
-            return
         }
         if shouldOpenPreferencesOnLaunch {
             DispatchQueue.main.async {
@@ -133,6 +131,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 didPreviousRunCrash: didPreviousRunCrash,
                 logFilePath: AppLogger.shared.currentLogFilePath
             )
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.presentIntroIfNeeded()
         }
     }
 
@@ -189,7 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var isRunningTests: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        TestRuntimeSupport.isRunning
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -199,6 +200,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsWindowPresenter.showHandler = nil
         terminationStateTracker.markTerminatedCleanly()
         AppLogger.shared.info(.appLifecycle, "applicationWillTerminate")
+    }
+
+    private func presentIntroIfNeeded() {
+        let versionIdentifier = currentVersionIdentifier
+        guard preferences.shouldShowIntro(for: versionIdentifier) else {
+            return
+        }
+
+        let controller = IntroWindowController(
+            hotkeyTitle: HotkeyFormatter.readableString(for: HotkeyManager.defaultCaptureHotkey),
+            appVersionTitle: statusItemController.versionMenuTitle,
+            onClose: { [weak self] in
+                self?.preferences.markIntroShown(for: versionIdentifier)
+                self?.introWindowController = nil
+            }
+        )
+        introWindowController = controller
+        controller.show()
+        AppLogger.shared.info(.appLifecycle, "presented intro for version \(versionIdentifier)")
+    }
+
+    private var currentVersionIdentifier: String {
+        let bundle = Bundle.main
+        let shortVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        let buildVersion = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+        return "\(shortVersion)-\(buildVersion)"
     }
 
     private func applyTheme() {
@@ -288,7 +315,7 @@ private struct AboutSceneView: View {
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 12) {
-                Link("Privacy Policy", destination: URL(string: "https://github.com/Warrfie/scrshot/releases/download/v1.2/PRIVACY.md")!)
+                Link("Privacy Policy", destination: URL(string: "https://github.com/Warrfie/scrshot/releases/download/v1.3/PRIVACY.md")!)
                 Link("GitHub", destination: URL(string: "https://github.com/Warrfie/scrshot")!)
             }
         }
@@ -334,7 +361,7 @@ private struct AboutWindowConfigurator: NSViewRepresentable {
 #if DEBUG
 struct AboutSceneView_Previews: PreviewProvider {
     static var previews: some View {
-        AboutSceneView(versionTitle: "Version 1.2 (1)")
+        AboutSceneView(versionTitle: "Version 1.3 (0)")
     }
 }
 #endif

@@ -39,6 +39,8 @@
 		A10000010000000000000032 /* AppLaunchSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000034 /* AppLaunchSupport.swift */; };
 		A10000010000000000000033 /* SecurityScopedDirectoryAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000039 /* SecurityScopedDirectoryAccess.swift */; };
 		A10000010000000000000034 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000040 /* PrivacyInfo.xcprivacy */; };
+		A10000010000000000000035 /* HotkeyFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000041 /* HotkeyFormatter.swift */; };
+		A10000010000000000000036 /* IntroWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000042 /* IntroWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +92,8 @@
 		A10000110000000000000038 /* scrshot.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = scrshot.entitlements; sourceTree = "<group>"; };
 		A10000110000000000000039 /* SecurityScopedDirectoryAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedDirectoryAccess.swift; sourceTree = "<group>"; };
 		A10000110000000000000040 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A10000110000000000000041 /* HotkeyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyFormatter.swift; sourceTree = "<group>"; };
+		A10000110000000000000042 /* IntroWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroWindowController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -161,6 +165,7 @@
 			children = (
 				A10000110000000000000034 /* AppLaunchSupport.swift */,
 				A10000110000000000000001 /* App.swift */,
+				A10000110000000000000042 /* IntroWindowController.swift */,
 				A10000110000000000000019 /* LaunchAtLoginController.swift */,
 				A10000110000000000000016 /* StatusItemController.swift */,
 			);
@@ -211,6 +216,7 @@
 				A10000110000000000000011 /* AppLogger.swift */,
 				A10000110000000000000021 /* AppRuntimeSupport.swift */,
 				A10000110000000000000006 /* ClipboardManager.swift */,
+				A10000110000000000000041 /* HotkeyFormatter.swift */,
 				A10000110000000000000002 /* HotkeyManager.swift */,
 				A10000110000000000000007 /* ImageSaver.swift */,
 				A10000110000000000000032 /* NSScreen+DisplayID.swift */,
@@ -361,6 +367,8 @@
 				A10000010000000000000031 /* ScreenshotEditorScreenPlacement.swift in Sources */,
 				A10000010000000000000032 /* AppLaunchSupport.swift in Sources */,
 				A10000010000000000000033 /* SecurityScopedDirectoryAccess.swift in Sources */,
+				A10000010000000000000035 /* HotkeyFormatter.swift in Sources */,
+				A10000010000000000000036 /* IntroWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -484,7 +492,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 0;
 				DEAD_CODE_STRIPPING = YES;
 				CODE_SIGN_ENTITLEMENTS = Sources/scrshot/scrshot.entitlements;
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = YES;
@@ -496,7 +504,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 					PRODUCT_BUNDLE_IDENTIFIER = io.github.Warrfie.scrshot;
 					PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -516,7 +524,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 0;
 				DEAD_CODE_STRIPPING = YES;
 				CODE_SIGN_ENTITLEMENTS = Sources/scrshot/scrshot.entitlements;
 				ENABLE_APP_SANDBOX = YES;
@@ -528,7 +536,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.Warrfie.scrshot;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

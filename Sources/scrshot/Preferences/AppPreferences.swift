@@ -25,6 +25,7 @@ final class AppPreferences {
         static let captureSound = "captureSound"
         static let recordingAudioSource = "recordingAudioSource"
         static let recordingFileFormat = "recordingFileFormat"
+        static let lastShownIntroVersion = "lastShownIntroVersion"
     }
 
     enum Theme: String, CaseIterable {
@@ -411,6 +412,14 @@ final class AppPreferences {
         }
     }
 
+    func shouldShowIntro(for versionIdentifier: String) -> Bool {
+        defaults.string(forKey: Keys.lastShownIntroVersion) != versionIdentifier
+    }
+
+    func markIntroShown(for versionIdentifier: String) {
+        defaults.set(versionIdentifier, forKey: Keys.lastShownIntroVersion)
+    }
+
     func resetToDefaults() {
         defaults.removeObject(forKey: Keys.hotkeyKeyCode)
         defaults.removeObject(forKey: Keys.hotkeyModifiers)
@@ -426,6 +435,7 @@ final class AppPreferences {
         defaults.removeObject(forKey: Keys.captureSound)
         defaults.removeObject(forKey: Keys.recordingAudioSource)
         defaults.removeObject(forKey: Keys.recordingFileFormat)
+        defaults.removeObject(forKey: Keys.lastShownIntroVersion)
         notifyChange()
     }
 

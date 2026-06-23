@@ -2,7 +2,7 @@
 
 ## Before Every Release
 
-1. Update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, or pass them into the release scripts.
+1. Update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, or pass them into the release scripts. When `MARKETING_VERSION` changes, reset `CURRENT_PROJECT_VERSION` to `0` and increment it only for additional builds of the same marketing version.
 2. Run tests:
 
    ```bash
@@ -67,7 +67,7 @@ Minimum metadata to prepare:
 
 - App name: `scrshot`
 - Category: Utilities
-- Privacy policy URL: `https://github.com/Warrfie/scrshot/releases/download/v1.2/PRIVACY.md`
+- Privacy policy URL: `https://github.com/Warrfie/scrshot/releases/download/v1.3/PRIVACY.md`
 - Review notes: use `docs/APP_REVIEW_NOTES.md`
 - Screenshots showing the menu bar, Preferences, editor, and recording menu state
 
