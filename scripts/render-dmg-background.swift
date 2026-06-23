@@ -3,11 +3,28 @@ import AppKit
 import Foundation
 
 let outputPath = CommandLine.arguments.dropFirst().first ?? "background.png"
-let canvasSize = NSSize(width: 660, height: 400)
-let pixelSize = canvasSize
+let canvasSize = NSSize(width: 660, height: 430)
+let pixelWidth = Int(canvasSize.width)
+let pixelHeight = Int(canvasSize.height)
 
-let image = NSImage(size: pixelSize)
-image.lockFocus()
+guard let bitmap = NSBitmapImageRep(
+    bitmapDataPlanes: nil,
+    pixelsWide: pixelWidth,
+    pixelsHigh: pixelHeight,
+    bitsPerSample: 8,
+    samplesPerPixel: 4,
+    hasAlpha: true,
+    isPlanar: false,
+    colorSpaceName: .deviceRGB,
+    bytesPerRow: 0,
+    bitsPerPixel: 0
+) else {
+    fatalError("Unable to create bitmap context")
+}
+
+bitmap.size = canvasSize
+NSGraphicsContext.saveGraphicsState()
+NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
 
 guard let context = NSGraphicsContext.current?.cgContext else {
     fatalError("Unable to create drawing context")
@@ -17,8 +34,8 @@ let bounds = CGRect(origin: .zero, size: canvasSize)
 let background = CGGradient(
     colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
     colors: [
-        NSColor(calibratedRed: 0.06, green: 0.08, blue: 0.11, alpha: 1).cgColor,
-        NSColor(calibratedRed: 0.10, green: 0.14, blue: 0.18, alpha: 1).cgColor
+        NSColor(calibratedWhite: 0.035, alpha: 1).cgColor,
+        NSColor(calibratedWhite: 0.08, alpha: 1).cgColor
     ] as CFArray,
     locations: [0, 1]
 )!
@@ -52,85 +69,76 @@ func roundedRect(_ rect: CGRect, radius: CGFloat, fill: NSColor, stroke: NSColor
 }
 
 context.saveGState()
-context.setShadow(offset: CGSize(width: 0, height: -16), blur: 32, color: NSColor.black.withAlphaComponent(0.22).cgColor)
+context.setShadow(offset: CGSize(width: 0, height: -14), blur: 28, color: NSColor.black.withAlphaComponent(0.32).cgColor)
 roundedRect(
-    CGRect(x: 52, y: 44, width: 556, height: 288),
+    CGRect(x: 52, y: 110, width: 556, height: 288),
     radius: 28,
-    fill: NSColor(calibratedRed: 0.94, green: 0.96, blue: 0.98, alpha: 0.08),
-    stroke: NSColor.white.withAlphaComponent(0.16),
+    fill: NSColor.white.withAlphaComponent(0.06),
+    stroke: NSColor.white.withAlphaComponent(0.18),
     lineWidth: 1
 )
 context.restoreGState()
 
 drawString(
     "scrshot",
-    in: CGRect(x: 0, y: 335, width: canvasSize.width, height: 34),
+    in: CGRect(x: 0, y: 350, width: canvasSize.width, height: 34),
     size: 26,
     weight: .semibold,
     color: NSColor.white.withAlphaComponent(0.96)
 )
 drawString(
     "Drag to Applications",
-    in: CGRect(x: 0, y: 305, width: canvasSize.width, height: 24),
+    in: CGRect(x: 0, y: 320, width: canvasSize.width, height: 24),
     size: 15,
     weight: .regular,
     color: NSColor.white.withAlphaComponent(0.62)
 )
 
+for x in stride(from: 72, through: 588, by: 24) {
+    context.setStrokeColor(NSColor.white.withAlphaComponent(0.025).cgColor)
+    context.setLineWidth(1)
+    context.move(to: CGPoint(x: x, y: 86))
+    context.addLine(to: CGPoint(x: x, y: 342))
+    context.strokePath()
+}
+
 roundedRect(
-    CGRect(x: 104, y: 132, width: 122, height: 122),
+    CGRect(x: 104, y: 170, width: 122, height: 140),
     radius: 27,
-    fill: NSColor(calibratedRed: 0.96, green: 0.98, blue: 1.0, alpha: 0.13),
-    stroke: NSColor.white.withAlphaComponent(0.24),
+    fill: NSColor.white.withAlphaComponent(0.10),
+    stroke: NSColor.white.withAlphaComponent(0.26),
     lineWidth: 1
 )
 roundedRect(
-    CGRect(x: 434, y: 132, width: 122, height: 122),
+    CGRect(x: 434, y: 170, width: 122, height: 140),
     radius: 27,
-    fill: NSColor(calibratedRed: 0.96, green: 0.98, blue: 1.0, alpha: 0.13),
-    stroke: NSColor.white.withAlphaComponent(0.24),
+    fill: NSColor.white.withAlphaComponent(0.10),
+    stroke: NSColor.white.withAlphaComponent(0.26),
     lineWidth: 1
 )
 
 context.saveGState()
 context.setLineCap(.round)
 context.setLineJoin(.round)
-context.setStrokeColor(NSColor.white.withAlphaComponent(0.78).cgColor)
-context.setLineWidth(8)
-context.move(to: CGPoint(x: 262, y: 193))
-context.addCurve(to: CGPoint(x: 398, y: 193), control1: CGPoint(x: 306, y: 221), control2: CGPoint(x: 354, y: 221))
+context.setStrokeColor(NSColor.white.cgColor)
+context.setLineWidth(7)
+context.move(to: CGPoint(x: 268, y: 239))
+context.addCurve(to: CGPoint(x: 392, y: 239), control1: CGPoint(x: 308, y: 263), control2: CGPoint(x: 352, y: 263))
 context.strokePath()
 
-context.setFillColor(NSColor.white.withAlphaComponent(0.78).cgColor)
+context.setFillColor(NSColor.white.cgColor)
 context.beginPath()
-context.move(to: CGPoint(x: 404, y: 193))
-context.addLine(to: CGPoint(x: 378, y: 211))
-context.addLine(to: CGPoint(x: 385, y: 193))
-context.addLine(to: CGPoint(x: 378, y: 175))
+context.move(to: CGPoint(x: 404, y: 239))
+context.addLine(to: CGPoint(x: 382, y: 260))
+context.addLine(to: CGPoint(x: 389, y: 239))
+context.addLine(to: CGPoint(x: 382, y: 224))
 context.closePath()
 context.fillPath()
 context.restoreGState()
 
-drawString(
-    "scrshot.app",
-    in: CGRect(x: 74, y: 86, width: 182, height: 22),
-    size: 13,
-    weight: .medium,
-    color: NSColor.white.withAlphaComponent(0.68)
-)
-drawString(
-    "Applications",
-    in: CGRect(x: 404, y: 86, width: 182, height: 22),
-    size: 13,
-    weight: .medium,
-    color: NSColor.white.withAlphaComponent(0.68)
-)
+NSGraphicsContext.restoreGraphicsState()
 
-image.unlockFocus()
-
-guard let tiffData = image.tiffRepresentation,
-      let bitmap = NSBitmapImageRep(data: tiffData),
-      let pngData = bitmap.representation(using: .png, properties: [:]) else {
+guard let pngData = bitmap.representation(using: .png, properties: [:]) else {
     fatalError("Unable to encode background PNG")
 }
 

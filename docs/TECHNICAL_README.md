@@ -207,13 +207,15 @@ xcodebuild -project scrshot.xcodeproj -scheme scrshot -configuration Debug -deri
 
 ```bash
 chmod +x scripts/build-dmg.sh
-./scripts/build-dmg.sh
+DEVELOPMENT_TEAM_VALUE=<APPLE_TEAM_ID> ./scripts/build-dmg.sh
 ```
 
 By default this produces:
 
 - `build/artifacts/scrshot-macos.dmg`
 - `build/artifacts/scrshot-macos.sha256`
+
+Installable DMG builds are signed by default so macOS TCC permissions use a stable app identity. For layout-only local packaging without a signing certificate, run `SIGNING_ALLOWED=NO ALLOW_UNSIGNED_DMG=YES ./scripts/build-dmg.sh`; do not use that unsigned app to validate Screen Recording or Microphone permissions.
 
 The GitHub Actions workflow `.github/workflows/release-artifacts.yml` uses the same script and uploads the generated `.dmg` plus checksum as downloadable workflow artifacts.
 

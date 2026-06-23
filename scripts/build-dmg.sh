@@ -10,13 +10,14 @@ APP_NAME="${APP_NAME:-scrshot.app}"
 DMG_BASENAME="${DMG_BASENAME:-scrshot-macos}"
 VOLUME_NAME="${VOLUME_NAME:-scrshot}"
 DMG_WINDOW_WIDTH="${DMG_WINDOW_WIDTH:-660}"
-DMG_WINDOW_HEIGHT="${DMG_WINDOW_HEIGHT:-400}"
+DMG_WINDOW_HEIGHT="${DMG_WINDOW_HEIGHT:-430}"
 DMG_ICON_SIZE="${DMG_ICON_SIZE:-96}"
 DMG_APP_ICON_X="${DMG_APP_ICON_X:-165}"
-DMG_APP_ICON_Y="${DMG_APP_ICON_Y:-205}"
+DMG_APP_ICON_Y="${DMG_APP_ICON_Y:-185}"
 DMG_APPLICATIONS_ICON_X="${DMG_APPLICATIONS_ICON_X:-495}"
-DMG_APPLICATIONS_ICON_Y="${DMG_APPLICATIONS_ICON_Y:-205}"
-SIGNING_ALLOWED="${SIGNING_ALLOWED:-NO}"
+DMG_APPLICATIONS_ICON_Y="${DMG_APPLICATIONS_ICON_Y:-185}"
+SIGNING_ALLOWED="${SIGNING_ALLOWED:-YES}"
+ALLOW_UNSIGNED_DMG="${ALLOW_UNSIGNED_DMG:-NO}"
 NOTARIZATION_ALLOWED="${NOTARIZATION_ALLOWED:-NO}"
 DMG_LAYOUT_REQUIRED="${DMG_LAYOUT_REQUIRED:-$SIGNING_ALLOWED}"
 CODE_SIGN_IDENTITY_VALUE="${CODE_SIGN_IDENTITY_VALUE:-}"
@@ -85,13 +86,19 @@ if [[ -n "$BUILD_NUMBER_VALUE" ]]; then
   )
 fi
 
+if [[ "$SIGNING_ALLOWED" != "YES" && "$ALLOW_UNSIGNED_DMG" != "YES" ]]; then
+  echo "Unsigned DMG builds are disabled by default because ad-hoc signed apps do not keep a stable TCC identity." >&2
+  echo "Use SIGNING_ALLOWED=YES for installable builds, or set ALLOW_UNSIGNED_DMG=YES for layout-only local packaging." >&2
+  exit 1
+fi
+
 if [[ "$SIGNING_ALLOWED" == "YES" ]]; then
   resolve_developer_id_identity() {
-    if [[ -z "$KEYCHAIN_PATH" ]]; then
-      echo "KEYCHAIN_PATH is required when code signing identity is AUTO" >&2
-      exit 1
+    local keychain_arg=()
+    if [[ -n "$KEYCHAIN_PATH" ]]; then
+      keychain_arg=("$KEYCHAIN_PATH")
     fi
-    security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+    security find-identity -v -p codesigning "${keychain_arg[@]}" \
       | sed -n 's/.*"\(Developer ID Application: .*\)".*/\1/p' \
       | head -n 1
   }
@@ -196,6 +203,8 @@ tell application "Finder"
     set theViewOptions to the icon view options of container window
     set arrangement of theViewOptions to not arranged
     set icon size of theViewOptions to $DMG_ICON_SIZE
+    set label position of theViewOptions to bottom
+    set text size of theViewOptions to 12
     set background picture of theViewOptions to backgroundImage
 
     set position of item "$APP_NAME" of container window to {$DMG_APP_ICON_X, $DMG_APP_ICON_Y}
