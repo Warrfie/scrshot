@@ -2,10 +2,6 @@ import AppKit
 import AVFoundation
 import Security
 
-enum AppSceneID {
-    static let about = "about"
-}
-
 enum XcodePreviewSupport {
     static let isRunning = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
 }

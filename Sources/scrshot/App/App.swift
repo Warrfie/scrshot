@@ -19,12 +19,6 @@ struct ScrshotApp: App {
         .commands {
             EditorCommandMenu()
         }
-
-        Window("About scrshot", id: AppSceneID.about) {
-            AboutSceneView(versionTitle: statusItemController.versionMenuTitle)
-        }
-        .defaultSize(width: 300, height: 260)
-        .windowResizability(.contentSize)
     }
 }
 
@@ -66,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let terminationStateTracker = AppTerminationStateTracker()
     private lazy var coordinator = AppCoordinator(preferences: preferences)
     private lazy var preferencesWindowController = PreferencesWindowController(preferences: preferences)
+    private lazy var aboutWindowController = AboutWindowController(versionTitle: statusItemController.versionMenuTitle)
     private let statusItemController = StatusItemController.shared
     private var introWindowController: IntroWindowController?
     private var preferencesObserver: NSObjectProtocol?
@@ -104,6 +99,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         SettingsWindowPresenter.showHandler = { [weak self] in
             self?.preferencesWindowController.show()
+        }
+        AboutWindowPresenter.showHandler = { [weak self] in
+            self?.aboutWindowController.show()
         }
         coordinator.onRecordingStateChange = { [weak self] isRecording in
             self?.statusItemController.setRecordingState(isRecording)
@@ -198,6 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NotificationCenter.default.removeObserver(preferencesObserver)
         }
         SettingsWindowPresenter.showHandler = nil
+        AboutWindowPresenter.showHandler = nil
         terminationStateTracker.markTerminatedCleanly()
         AppLogger.shared.info(.appLifecycle, "applicationWillTerminate")
     }
@@ -292,6 +291,74 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@MainActor
+final class AboutWindowController: NSWindowController {
+    private let hostingController: NSHostingController<AboutSceneView>
+    private var resignKeyObserver: NSObjectProtocol?
+
+    init(versionTitle: String) {
+        self.hostingController = NSHostingController(rootView: AboutSceneView(versionTitle: versionTitle))
+
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 300, height: 260),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "About scrshot"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.contentViewController = hostingController
+        super.init(window: window)
+        resignKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.closeIfResignedWithoutModalWindow()
+            }
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    deinit {
+        if let resignKeyObserver {
+            NotificationCenter.default.removeObserver(resignKeyObserver)
+        }
+    }
+
+    func show() {
+        showWindow(nil)
+        window?.centerOnActiveScreen()
+        window?.makeKeyAndOrderFront(nil)
+        window?.recenterOnActiveScreenAfterLayout()
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func closeIfResignedWithoutModalWindow() {
+        DispatchQueue.main.async { [weak self] in
+            guard let window = self?.window, window.isVisible else { return }
+            guard window.attachedSheet == nil, NSApp.modalWindow == nil else { return }
+            window.close()
+        }
+    }
+}
+
+@MainActor
+enum AboutWindowPresenter {
+    static var showHandler: (() -> Void)?
+
+    static func show() {
+        guard !XcodePreviewSupport.isRunning else { return }
+        showHandler?()
+    }
+}
+
 private struct AboutSceneView: View {
     let versionTitle: String
 
@@ -313,6 +380,7 @@ private struct AboutSceneView: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 12) {
                 Link("Privacy Policy", destination: URL(string: "https://github.com/Warrfie/scrshot/releases/download/v1.3/PRIVACY.md")!)
@@ -321,7 +389,6 @@ private struct AboutSceneView: View {
         }
         .padding(20)
         .frame(width: 300)
-        .background(AboutWindowConfigurator())
     }
 
     private var appIconImage: NSImage {
@@ -333,35 +400,10 @@ private struct AboutSceneView: View {
     }
 }
 
-private struct AboutWindowConfigurator: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        DispatchQueue.main.async {
-            configure(window: view.window)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            configure(window: nsView.window)
-        }
-    }
-
-    private func configure(window: NSWindow?) {
-        guard let window else { return }
-        window.level = .floating
-        window.hidesOnDeactivate = false
-        window.collectionBehavior.insert(.canJoinAllSpaces)
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-}
-
 #if DEBUG
 struct AboutSceneView_Previews: PreviewProvider {
     static var previews: some View {
-        AboutSceneView(versionTitle: "Version 1.3 (0)")
+        AboutSceneView(versionTitle: "Version 1.3")
     }
 }
 #endif

@@ -9,6 +9,34 @@ protocol SoundPlayback {
 
 extension NSSound: SoundPlayback {}
 
+extension NSWindow {
+    func centerOnActiveScreen() {
+        contentView?.layoutSubtreeIfNeeded()
+        let mouseLocation = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) } ?? screen ?? NSScreen.main
+        guard let visibleFrame = screen?.visibleFrame else {
+            center()
+            return
+        }
+        let currentSize = CGSize(
+            width: min(frame.width, visibleFrame.width),
+            height: min(frame.height, visibleFrame.height)
+        )
+        let origin = CGPoint(
+            x: round(visibleFrame.midX - currentSize.width / 2),
+            y: round(visibleFrame.midY - currentSize.height / 2)
+        )
+        setFrame(CGRect(origin: origin, size: currentSize), display: true)
+    }
+
+    func recenterOnActiveScreenAfterLayout() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.centerOnActiveScreen()
+        }
+    }
+}
+
 @MainActor
 final class AppTerminationStateTracker {
     enum Keys {
@@ -135,8 +163,9 @@ final class AppMessageWindowController: NSWindowController, NSWindowDelegate {
 
     func show() {
         showWindow(nil)
-        window?.center()
+        window?.centerOnActiveScreen()
         window?.makeKeyAndOrderFront(nil)
+        window?.recenterOnActiveScreenAfterLayout()
         NSApp.activate(ignoringOtherApps: true)
     }
 

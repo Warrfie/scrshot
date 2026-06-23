@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 @MainActor
 final class PreferencesWindowController: NSWindowController {
     private let hostingController: NSHostingController<PreferencesSceneView>
+    private var resignKeyObserver: NSObjectProtocol?
 
     init(preferences: AppPreferences) {
         self.hostingController = NSHostingController(rootView: PreferencesSceneView(preferences: preferences))
@@ -22,6 +23,15 @@ final class PreferencesWindowController: NSWindowController {
         window.contentViewController = hostingController
         window.toolbarStyle = .preference
         super.init(window: window)
+        resignKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.closeIfResignedWithoutModalWindow()
+            }
+        }
     }
 
     @available(*, unavailable)
@@ -29,10 +39,26 @@ final class PreferencesWindowController: NSWindowController {
         nil
     }
 
+    deinit {
+        if let resignKeyObserver {
+            NotificationCenter.default.removeObserver(resignKeyObserver)
+        }
+    }
+
     func show() {
         showWindow(nil)
+        window?.centerOnActiveScreen()
         window?.makeKeyAndOrderFront(nil)
+        window?.recenterOnActiveScreenAfterLayout()
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func closeIfResignedWithoutModalWindow() {
+        DispatchQueue.main.async { [weak self] in
+            guard let window = self?.window, window.isVisible else { return }
+            guard window.attachedSheet == nil, NSApp.modalWindow == nil else { return }
+            window.close()
+        }
     }
 }
 

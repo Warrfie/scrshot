@@ -23,6 +23,7 @@ final class IntroWindowController: NSWindowController {
             defer: false
         )
         window.title = "Welcome to scrshot"
+        window.level = .floating
         window.center()
         window.isReleasedWhenClosed = false
         window.contentViewController = hostingController
@@ -38,7 +39,10 @@ final class IntroWindowController: NSWindowController {
 
     func show() {
         showWindow(nil)
+        window?.centerOnActiveScreen()
         window?.makeKeyAndOrderFront(nil)
+        window?.orderFrontRegardless()
+        window?.recenterOnActiveScreenAfterLayout()
         NSApp.activate(ignoringOtherApps: true)
     }
 }
@@ -124,7 +128,7 @@ private struct MenuBarOverflowDiagram: View {
             }
 
             HStack(spacing: 8) {
-                Image(systemName: "arrow.up.right")
+                Image(systemName: "arrow.up")
                 Text("The icon area can run out of room")
             }.offset(x: 100)
             .font(.caption.weight(.medium))
@@ -149,7 +153,7 @@ private struct MenuBarOverflowDiagram: View {
 private struct OverflowMask: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(.background.opacity(0.82))
+            .fill(.background.opacity(0.2))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(.secondary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
@@ -167,7 +171,7 @@ struct IntroSceneView_Previews: PreviewProvider {
     static var previews: some View {
         IntroSceneView(
             hotkeyTitle: "⌘ + Shift + 1",
-            appVersionTitle: "Version 1.3 (0)",
+            appVersionTitle: "Version 1.3",
             dismissAction: {}
         )
     }

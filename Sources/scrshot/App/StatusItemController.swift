@@ -28,8 +28,7 @@ final class StatusItemController: ObservableObject {
     var versionMenuTitle: String {
         let bundle = Bundle.main
         let shortVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.3"
-        let buildVersion = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
-        return "Version \(shortVersion) (\(buildVersion))"
+        return "Version \(shortVersion)"
     }
 
     var menuBarSymbolName: String {
@@ -63,13 +62,12 @@ final class StatusItemController: ObservableObject {
 }
 
 struct StatusItemMenuBarContent: View {
-    @Environment(\.openWindow) private var openWindow
     @ObservedObject var controller: StatusItemController
 
     var body: some View {
         VStack {
             Button("About scrshot…") {
-                openWindow(id: AppSceneID.about)
+                AboutWindowPresenter.show()
             }
 
             Divider()
